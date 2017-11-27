@@ -11,8 +11,10 @@ If Docker is used, an image is built with all needed dependencies and it can be 
 Simply move to the cloned directory and issue the command
 
 ```sh
-$ python3 main.py --clevr-dir /path/to/clevr_dataset/CLEVRv1.0
+$ python3 main.py --clevr-dir /path/to/clevr_dataset/CLEVR_v1.0
 ```
+CLEVR_v1.0/ is the folder downloaded from the CLEVR dataset website http://cs.stanford.edu/people/jcjohns/clevr/
+
 To explore a bunch of other possible arguments useful to customize training, issue command
 ```sh
 $ python3 main.py --help
@@ -25,6 +27,7 @@ To build and execute the docker image, move to the cloned directory and issue th
 $ sudo ./docker_build.sh
 $ sudo ./docker_run.sh /path/to/clevr_dataset/CLEVR_v1.0
 ```
+CLEVR_v1.0/ is the folder downloaded from the CLEVR dataset website http://cs.stanford.edu/people/jcjohns/clevr/
 
 By default, the training is performed with mini-batches of size 64 and for a maximum of 1400000 epochs.
 If multiple GPUs are used or some specific parameters for the main.py script are needed, it is required to slightly modify the docker_run.sh script.
