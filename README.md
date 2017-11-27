@@ -22,8 +22,8 @@ $ python3 main.py --help
 To build and execute the docker image, move to the cloned directory and issue the following commands
 
 ```sh
-$ sudo docker_build.sh
-$ sudo docker_run.sh /path/to/clevr_dataset/CLEVR_v1.0
+$ sudo ./docker_build.sh
+$ sudo ./docker_run.sh /path/to/clevr_dataset/CLEVR_v1.0
 ```
 
 By default, the training is performed with mini-batches of size 64 and for a maximum of 1400000 epochs.
