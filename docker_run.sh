@@ -8,5 +8,5 @@ else
 		--volume=$PWD:/app \
 		--volume=$CLEVRDIR:/clevr \
 		-e CUDA_VISIBLE_DEVICES=0  \
-		pytorch-rn python3 /app/main.py --clevr-dir=/clevr --epochs 1400000
+		pytorch-rn python3 /app/main.py --clevr-dir=/clevr
 fi

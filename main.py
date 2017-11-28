@@ -54,8 +54,8 @@ def build_dictionaries():
 parser = argparse.ArgumentParser(description='PyTorch Relational-Network CLEVR')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input batch size for training (default: 64)')
-parser.add_argument('--epochs', type=int, default=20, metavar='N',
-                    help='number of epochs to train (default: 20)')
+parser.add_argument('--epochs', type=int, default=200, metavar='N',
+                    help='number of epochs to train (default: 200)')
 parser.add_argument('--lr', type=float, default=0.00025, metavar='LR',
                     help='learning rate (default: 0.00025)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
