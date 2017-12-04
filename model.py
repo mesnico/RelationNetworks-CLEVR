@@ -84,25 +84,17 @@ class RN(BasicModel):
         self.conv_out_size = 8	#calculated from actual convolutional layer parameters
         
         ##(number of filters per object+coordinate of object)*2+question vector
-        self.g_fc1 = nn.Linear((24+2)*2+self.hidden_size, 512)
+        self.g_fc1 = nn.Linear((24+2)*2+self.hidden_size, 256)
 
-        self.g_fc2 = nn.Linear(512, 512)
-        self.g_fc3 = nn.Linear(512, 512)
-        self.g_fc4 = nn.Linear(512, 512)
+        self.g_fc2 = nn.Linear(256, 256)
+        self.g_fc3 = nn.Linear(256, 256)
+        self.g_fc4 = nn.Linear(256, 256)
 
-        self.f_fc1 = nn.Linear(512, 512)
-        self.f_fc2 = nn.Linear(512, 1024)
-        self.f_fc3 = nn.Linear(1024, args.adict_size)
+        self.f_fc1 = nn.Linear(256, 256)
+        self.f_fc2 = nn.Linear(256, 256)
+        self.f_fc3 = nn.Linear(256, args.adict_size)
 
         self.dropout = nn.Dropout(p=0.5)
-
-        self.coord_oi = torch.FloatTensor(args.batch_size, 2)
-        self.coord_oj = torch.FloatTensor(args.batch_size, 2)
-        if args.cuda:
-            self.coord_oi = self.coord_oi.cuda()
-            self.coord_oj = self.coord_oj.cuda()
-        self.coord_oi = Variable(self.coord_oi)
-        self.coord_oj = Variable(self.coord_oj)
 
         # prepare coord tensor
         def cvt_coord(i):
@@ -145,6 +137,8 @@ class RN(BasicModel):
 
         _, self.hidden = self.lstm(wembed, self.hidden)
         qst = self.hidden[1] # last layer of the lstm. qst = (64 x 128)
+        #take the hidden state at the last LSTM layer (as of now, there is only one LSTM layer)
+        qst = qst[-1]
 
         x = self.conv(img) ## x = (64 x 24 x 8 x 8)
         
@@ -186,7 +180,7 @@ class RN(BasicModel):
         x_ = F.relu(x_)
         
         # reshape again and sum
-        x_g = x_.view(mb,d*d*d*d,512)
+        x_g = x_.view(mb,d*d*d*d,256)
         x_g = x_g.sum(1).squeeze(1)
         
         """f"""
