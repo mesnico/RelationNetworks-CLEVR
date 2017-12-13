@@ -188,6 +188,7 @@ class RN(BasicModel):
         """f"""
         x_f = self.f_fc1(x_g)
         x_f = F.relu(x_f)
+        x_f = self.dropout(x_f)
         x_f = self.f_fc2(x_f)
         x_f = F.relu(x_f)
         x_f = self.dropout(x_f)
