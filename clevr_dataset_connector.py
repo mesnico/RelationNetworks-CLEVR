@@ -6,7 +6,6 @@ from torch.utils.data import Dataset
 import pdb
 
 class ClevrDataset(Dataset):
-    """Face Landmarks dataset."""
 
     def __init__(self, clevr_dir, train, dictionaries, transform=None):
         """

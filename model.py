@@ -96,7 +96,8 @@ class RN(BasicModel):
         self.f_fc2 = nn.Linear(256, 256)
         self.f_fc3 = nn.Linear(256, args.adict_size)
 
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout1 = nn.Dropout(p=0.5)
+        self.dropout2 = nn.Dropout(p=0.5)
 
         # prepare coord tensor
         def cvt_coord(i):
@@ -188,10 +189,10 @@ class RN(BasicModel):
         """f"""
         x_f = self.f_fc1(x_g)
         x_f = F.relu(x_f)
-        x_f = self.dropout(x_f)
+        x_f = self.dropout1(x_f)
         x_f = self.f_fc2(x_f)
         x_f = F.relu(x_f)
-        x_f = self.dropout(x_f)
+        x_f = self.dropout2(x_f)
         x_f = self.f_fc3(x_f)
         #x_f = F.relu(x_f)
         return F.log_softmax(x_f)

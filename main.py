@@ -85,15 +85,16 @@ dictionaries = build_dictionaries()
 print('Word dictionary completed!')
 
 print('Initializing CLEVR dataset...')
-composed_transforms = Compose([ transforms.Resize((128,128)),
+train_transforms = Compose([ transforms.Resize((128,128)),
                                 transforms.Pad(8),
                                 transforms.RandomCrop((128,128)),
                                 transforms.RandomRotate(2.8),
                                 transforms.ToTensor()])
-'''composed_transforms = Compose([ transforms.Resize((128,128)),
-                                transforms.ToTensor()])'''
-clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, composed_transforms)
-clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, composed_transforms) 
+test_transforms = Compose([ transforms.Resize((128,128)),
+                                transforms.ToTensor()])
+
+clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms)
+clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms) 
 
 print('CLEVR dataset initialized!')   
 
