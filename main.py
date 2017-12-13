@@ -72,7 +72,7 @@ parser.add_argument('--clevr-dir', type=str, default='.',
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-model_dirs = './model'
+model_dirs = './model_b{}_lr{}'.format(args.batch_size, args.lr)
 clevr_dir = args.clevr_dir
 
 torch.manual_seed(args.seed)
@@ -209,4 +209,4 @@ print('Training ({} epochs) is starting...'.format(args.epochs))
 for epoch in range(1, args.epochs + 1):
     train(epoch)
     test(epoch)
-    model.save_model(epoch)
+    model.save_model(epoch, model_dirs)

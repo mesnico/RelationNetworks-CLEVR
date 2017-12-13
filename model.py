@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -64,8 +65,9 @@ class BasicModel(nn.Module):
         accuracy = correct * 100. / len(label)
         return accuracy
 
-    def save_model(self, epoch):
-        torch.save(self.state_dict(), 'model/epoch_{}_{:02d}.pth'.format(self.name, epoch))
+    def save_model(self, epoch, model_dir='model'):
+        fname = 'epoch_{}_{:02d}.pth'.format(self.name, epoch)
+        torch.save(self.state_dict(), os.path.join(model_dir, fname))
 
 
 class RN(BasicModel):
