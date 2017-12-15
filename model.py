@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 from torch.autograd import Variable
 import pdb
 
@@ -20,7 +19,6 @@ class ConvInputModel(nn.Module):
         self.batchNorm3 = nn.BatchNorm2d(24)
         self.conv4 = nn.Conv2d(24, 24, 3, stride=2, padding=1)
         self.batchNorm4 = nn.BatchNorm2d(24)
-
         
     def forward(self, img):
         """convolution"""
@@ -42,28 +40,7 @@ class ConvInputModel(nn.Module):
 class BasicModel(nn.Module):
     def __init__(self, args, name):
         super(BasicModel, self).__init__()
-        self.name=name
-
-    def train_(self, input_img, input_qst, label):
-        label = label.squeeze(1)
-        self.optimizer.zero_grad()
-        output = self(input_img, input_qst)
-        #pdb.set_trace()
-        loss = F.nll_loss(output, label)
-        loss.backward()
-        self.optimizer.step()
-        pred = output.data.max(1)[1]
-        correct = pred.eq(label.data).cpu().sum()
-        accuracy = correct * 100. / len(label)
-        return accuracy
-        
-    def test_(self, input_img, input_qst, label):
-        label = label.squeeze(1)
-        output = self(input_img, input_qst)
-        pred = output.data.max(1)[1]
-        correct = pred.eq(label.data).cpu().sum()
-        accuracy = correct * 100. / len(label)
-        return accuracy
+        self.name = name
 
     def save_model(self, epoch, model_dir='model'):
         fname = 'epoch_{}_{:02d}.pth'.format(self.name, epoch)
@@ -112,8 +89,6 @@ class RN(BasicModel):
         for i in range(self.conv_out_size**2):
             np_coord_tensor[:,i,:] = np.array( cvt_coord(i) )
         self.coord_tensor.data.copy_(torch.from_numpy(np_coord_tensor))
-        
-        self.optimizer = optim.Adam(self.parameters(), lr=args.lr)
 
     def init_lstm_hidden(self):
         hidden_state = torch.randn(1, self.args.batch_size, self.hidden_size)
