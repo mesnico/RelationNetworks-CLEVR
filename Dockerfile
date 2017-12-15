@@ -74,8 +74,9 @@ RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
     libgtk2.0-0 \
     libcanberra-gtk-module \
  && sudo rm -rf /var/lib/apt/lists/*
-RUN conda install -y --name pytorch-py36 -c menpo opencv3 \
+RUN conda install -y --name pytorch-py36 -c menpo opencv3 tqdm \
  && conda clean -ya
+RUN pip install --no-cache --upgrade torchvision
 
 # Set the default command to python3
 CMD ["python3"]
