@@ -61,12 +61,13 @@ def build_dictionaries(clevr_dir):
     return ret
 
 
-def load_tensor_data(data_batch, cuda):
+def load_tensor_data(data_batch, cuda, volatile=False):
     # prepare input
+    var_kwargs = dict(volatile=True) if volatile else dict(requires_grad=False)
     
-    img = Variable(data_batch['image'], requires_grad=False)
-    qst = Variable(data_batch['question'], requires_grad=False)
-    label = Variable(data_batch['answer'], requires_grad=False)
+    img = Variable(data_batch['image'], **var_kwargs)
+    qst = Variable(data_batch['question'], **var_kwargs)
+    label = Variable(data_batch['answer'], **var_kwargs)
     if cuda:
        img, qst, label = img.cuda(), qst.cuda(), label.cuda()
        
@@ -109,7 +110,7 @@ def test(data, model, epoch, args):
     n_samples = 0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
-        img, qst, label = load_tensor_data(sample_batched, args.cuda)
+        img, qst, label = load_tensor_data(sample_batched, args.cuda, volatile=True)
         
         output = model(img, qst)
         
