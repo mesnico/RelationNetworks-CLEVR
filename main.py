@@ -165,6 +165,9 @@ def main(args):
     args.adict_size = len(dictionaries[1])
     model = RN(args)
     
+    if torch.cuda.device_count() > 1 and args.cuda:
+        model = torch.nn.DataParallel(model)
+    
     if args.cuda:
         model.cuda()
 
