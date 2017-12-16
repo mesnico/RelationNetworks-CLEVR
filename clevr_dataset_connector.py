@@ -1,9 +1,9 @@
 import os
 import json
-from PIL import Image
 import utils
+
+from PIL import Image
 from torch.utils.data import Dataset
-import pdb
 
 class ClevrDataset(Dataset):
 
@@ -44,5 +44,4 @@ class ClevrDataset(Dataset):
         if self.transform:
             sample['image'] = self.transform(sample['image'])
 
-        #pdb.set_trace()
         return sample

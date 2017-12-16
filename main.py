@@ -97,8 +97,8 @@ def train(data, model, optimizer, epoch, args):
             progress_bar.set_postfix(dict(loss=avg_loss))
             processed = batch_idx * args.batch_size
             n_samples = len(data) * args.batch_size
-            progress = 100. * processed / n_samples
-            print('Train Epoch: {} [{}/{} ({:.0f}%)] Train loss: {}%'.format(
+            progress = float(processed) / n_samples
+            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {}'.format(
                 epoch, processed, n_samples, progress, avg_loss))
             avg_loss = 0.0
             
@@ -106,7 +106,7 @@ def train(data, model, optimizer, epoch, args):
 def test(data, model, epoch, args):
     model.eval()
 
-    corrects = 0
+    corrects = 0.0
     n_samples = 0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
@@ -120,11 +120,11 @@ def test(data, model, epoch, args):
         n_samples += len(label)
         
         if batch_idx % args.log_interval == 0:
-            accuracy = corrects * 100.0 / n_samples
-            progress_bar.set_postfix(dict(acc='{:.2f}'.format(accuracy)))
+            accuracy = corrects / n_samples
+            progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy)))
             
-    accuracy = corrects * 100.0 / n_samples
-    print('Test Epoch {}: Accuracy = {:.2f}% ({}/{})'.format(epoch, accuracy, corrects, n_samples))
+    accuracy = corrects / n_samples
+    print('Test Epoch {}: Accuracy = {:.2%} ({}/{})'.format(epoch, accuracy, corrects, n_samples))
 
 
 def main(args):
@@ -156,9 +156,9 @@ def main(args):
 
     #Initialize Clevr dataset loaders
     clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
-                            shuffle=True, num_workers=8, collate_fn=utils.collate_samples, drop_last=True)
+                            shuffle=True, num_workers=8, collate_fn=utils.collate_samples)
     clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size / 4,
-                            shuffle=False, num_workers=8, collate_fn=utils.collate_samples, drop_last=True)
+                            shuffle=False, num_workers=8, collate_fn=utils.collate_samples)
                             
     print('CLEVR dataset initialized!')   
 
@@ -167,9 +167,11 @@ def main(args):
     args.adict_size = len(dictionaries[1])
     model = RN(args)
     
+    
     if torch.cuda.device_count() > 1 and args.cuda:
         model = torch.nn.DataParallel(model)
-    
+        model.module.cuda() # call cuda() overridden method 
+        
     if args.cuda:
         model.cuda()
 

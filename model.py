@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-import pdb
 
 
 class ConvInputModel(nn.Module):
@@ -38,13 +37,11 @@ class ConvInputModel(nn.Module):
 
 
 class QuestionEmbedModel(nn.Module):
-    def __init__(self, in_size, emb_size=32, hidden_size=128, cuda=False):
+    def __init__(self, in_size, embed=32, hidden=128):
         super(QuestionEmbedModel, self).__init__()
-        self.cuda = cuda
-        self.hidden_size = hidden_size
         
-        self.wembedding = nn.Embedding(in_size + 1, emb_size, padding_idx=0)  #word embeddings have size 32. Indexes 0 output 0 vectors (variable len questions)
-        self.lstm = nn.LSTM(emb_size, hidden_size, batch_first=True)  # Input dim is 32, output dim is the question embedding
+        self.wembedding = nn.Embedding(in_size + 1, embed, padding_idx=0)  #word embeddings have size 32. Indexes 0 output 0 vectors (variable len questions)
+        self.lstm = nn.LSTM(embed, hidden, batch_first=True)  # Input dim is 32, output dim is the question embedding
         
     def forward(self, question):   
         #calculate question embeddings
@@ -60,7 +57,7 @@ class QuestionEmbedModel(nn.Module):
         
 
 class RelationalLayerModel(nn.Module):
-    def __init__(self, in_size, out_size, conv_out_size, batch_size, cuda=False):
+    def __init__(self, in_size, out_size, conv_out_size=8):
         super(RelationalLayerModel, self).__init__()
         
         self.conv_out_size = conv_out_size
@@ -89,9 +86,10 @@ class RelationalLayerModel(nn.Module):
         coord_tensor = build_coord_tensor(self.conv_out_size)
         self.coord_tensor = Variable(coord_tensor)
         
-        if cuda:
-            self.coord_tensor = self.coord_tensor.cuda()
-        
+    def cuda(self):
+        self.coord_tensor = self.coord_tensor.cuda()
+        super(RelationalLayerModel, self).cuda()
+    
     def forward(self, x, qst):
         # x = (B x 24 x 8 x 8)
         # qst = (B x 128)
@@ -150,29 +148,28 @@ class RelationalLayerModel(nn.Module):
 class RN(nn.Module):
     def __init__(self, args):
         super(RN, self).__init__()
-        
-        self.hidden_size = 128
-        self.text = QuestionEmbedModel(args.qdict_size,
-            hidden_size=self.hidden_size, cuda=args.cuda)
-        
-        # calculated from actual convolutional layer parameters
-        self.conv_out_size = 8
-        # (number of filters per object + coordinate of object)*2 + question vector
-        self.relat_input_size = (24 + 2)*2 + self.hidden_size
-        self.relat_output_size = args.adict_size
-        
+        # CNN
         self.conv = ConvInputModel()
-        self.relat = RelationalLayerModel(self.relat_input_size,
-            self.relat_output_size, self.conv_out_size, args.batch_size, args.cuda)
         
-        #if self.parallel:
-        #    self.conv = nn.DataParallel(self.conv, dim=0)
-        #    self.text = nn.DataParallel(self.text, dim=1)
-        #    self.relat = nn.DataParallel(self.relat, dim=0)
+        # LSTM
+        hidden_size = 128
+        self.text = QuestionEmbedModel(args.qdict_size, embed=32, hidden=hidden_size)
+        
+        # RELATIONAL LAYER
+        # (No. of filters per object + coordinate of object)*2 + question vector
+        self.rl_in_size = (24 + 2)*2 + hidden_size
+        self.rl_out_size = args.adict_size
+        self.rl = RelationalLayerModel(self.rl_in_size, 
+            self.rl_out_size,
+            conv_out_size=8) # calculated from actual convolutional layer parameters
 
     def forward(self, img, qst_idxs):
         x = self.conv(img)
         qst = self.text(qst_idxs)
-        y = self.relat(x, qst)
+        y = self.rl(x, qst)
         return y
+    
+    def cuda(self):
+        self.rl.cuda()
+        super(RN, self).cuda()
         
