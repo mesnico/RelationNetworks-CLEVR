@@ -58,7 +58,8 @@ class QuestionEmbedModel(nn.Module):
 
         # wembed = wembed.permute(1,0,2)   #in lstm minibatches are in the 2-nd dimension
         #wembed = wembed.view(len(qst_idxs[0]), self.args.batch_size , -1)
-
+        
+        self.lstm.flatten_parameters()
         _, self.hidden = self.lstm(wembed, self.hidden)
         qst = self.hidden[1] # last layer of the lstm. qst = (B x 128)
         #take the hidden state at the last LSTM layer (as of now, there is only one LSTM layer)
@@ -86,15 +87,15 @@ class RelationalLayerModel(nn.Module):
         self.dropout2 = nn.Dropout(p=0.5)
 
         # prepare coord tensor
-        def build_coord_tensor(s, b):
+        def build_coord_tensor(s):
             a = torch.arange(0, s**2)
             x = (a/s - s/2)/(s/2.)
             y = (a%s - s/2)/(s/2.)
-            return torch.stack((x,y), dim=1).repeat(b, 1, 1)
+            return torch.stack((x,y), dim=1)
         
         # broadcast to all batches
         # TODO: upgrade pytorch and use broadcasting
-        coord_tensor = build_coord_tensor(self.conv_out_size, batch_size)
+        coord_tensor = build_coord_tensor(self.conv_out_size)
         self.coord_tensor = Variable(coord_tensor)
         
         if cuda:
@@ -110,7 +111,8 @@ class RelationalLayerModel(nn.Module):
         x_flat = x.view(mb, n_channels, d*d).permute(0,2,1)# (B x 64 x 24)
         
         # add coordinates
-        x_flat = torch.cat([x_flat, self.coord_tensor], 2) # (B x 64 x 24+2)
+        coords = self.coord_tensor.repeat(mb, 1, 1)        # (B x 64 x 2)
+        x_flat = torch.cat([x_flat, coords], 2)            # (B x 64 x 24+2)
         
         # add question everywhere
         qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
