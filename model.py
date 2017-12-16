@@ -36,6 +36,7 @@ class ConvInputModel(nn.Module):
         x = self.batchNorm4(x)
         return x
 
+
 class QuestionEmbedModel(nn.Module):
     def __init__(self, in_size, emb_size=32, hidden_size=128, cuda=False):
         super(QuestionEmbedModel, self).__init__()
@@ -45,27 +46,17 @@ class QuestionEmbedModel(nn.Module):
         self.wembedding = nn.Embedding(in_size + 1, emb_size, padding_idx=0)  #word embeddings have size 32. Indexes 0 output 0 vectors (variable len questions)
         self.lstm = nn.LSTM(emb_size, hidden_size, batch_first=True)  # Input dim is 32, output dim is the question embedding
         
-    def forward(self, question):
-        # initialize the lstm hidden state
-        batch_size = question.size()[0]
-        self.hidden = (Variable(torch.zeros(1, batch_size, self.hidden_size)),
-                       Variable(torch.zeros(1, batch_size, self.hidden_size)))
-        if self.cuda: 
-            self.hidden = tuple(t.cuda() for t in self.hidden)
-        
+    def forward(self, question):   
         #calculate question embeddings
         wembed = self.wembedding(question)
-
-        # wembed = wembed.permute(1,0,2)   #in lstm minibatches are in the 2-nd dimension
-        #wembed = wembed.view(len(qst_idxs[0]), self.args.batch_size , -1)
-        
+        # wembed = wembed.permute(1,0,2) # in lstm minibatches are in the 2-nd dimension
         self.lstm.flatten_parameters()
-        _, self.hidden = self.lstm(wembed, self.hidden)
-        qst = self.hidden[1] # last layer of the lstm. qst = (B x 128)
-        #take the hidden state at the last LSTM layer (as of now, there is only one LSTM layer)
-        qst = qst[-1]
+        _, hidden = self.lstm(wembed) # initial state is set to zeros by default
+        qst_emb = hidden[1] # last layer of the lstm. qst = (B x 128)
+        # take the hidden state at the last LSTM layer (as of now, there is only one LSTM layer)
+        qst_emb = qst_emb[-1]
         
-        return qst
+        return qst_emb
         
 
 class RelationalLayerModel(nn.Module):
@@ -156,19 +147,9 @@ class RelationalLayerModel(nn.Module):
         return F.log_softmax(x_f)
 
 
-class BasicModel(nn.Module):
-    def __init__(self, name):
-        super(BasicModel, self).__init__()
-        self.name = name
-
-    def save_model(self, epoch, model_dir='model'):
-        fname = 'epoch_{}_{:02d}.pth'.format(self.name, epoch)
-        torch.save(self.state_dict(), os.path.join(model_dir, fname))
-    
-
-class RN(BasicModel):
+class RN(nn.Module):
     def __init__(self, args):
-        super(RN, self).__init__('RN')
+        super(RN, self).__init__()
         
         self.hidden_size = 128
         self.text = QuestionEmbedModel(args.qdict_size,

@@ -156,7 +156,7 @@ def main(args):
     #Initialize Clevr dataset loaders
     clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
                             shuffle=True, num_workers=8, collate_fn=utils.collate_samples, drop_last=True)
-    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
+    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size / 4,
                             shuffle=False, num_workers=8, collate_fn=utils.collate_samples, drop_last=True)
                             
     print('CLEVR dataset initialized!')   
@@ -185,11 +185,15 @@ def main(args):
     print('Training ({} epochs) is starting...'.format(args.epochs))
     progress_bar = trange(1, args.epochs + 1) 
     for epoch in progress_bar:
+        # TRAIN
         progress_bar.set_description('TRAIN')
         train(clevr_train_loader, model, optimizer, epoch, args)
+        # TEST
         progress_bar.set_description('TEST')
         test(clevr_test_loader, model, epoch, args)
-        model.save_model(epoch, model_dirs)
+        # SAVE MODEL
+        fname = 'RN_epoch_{:02d}.pth'.format(epoch)
+        torch.save(model.state_dict(), os.path.join(model_dirs, fname))
         
     
 if __name__ == '__main__':
