@@ -95,9 +95,10 @@ def train(data, model, optimizer, epoch, args):
             avg_loss /= args.log_interval
             progress_bar.set_postfix(dict(loss=avg_loss))
             processed = batch_idx * args.batch_size
-            progress = 100. * processed / len(data)
+            n_samples = len(data) * args.batch_size
+            progress = 100. * processed / n_samples
             print('Train Epoch: {} [{}/{} ({:.0f}%)] Train loss: {}%'.format(
-                epoch, processed, len(data), progress, avg_loss))
+                epoch, processed, n_samples, progress, avg_loss))
             avg_loss = 0.0
             
 
