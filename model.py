@@ -57,10 +57,10 @@ class QuestionEmbedModel(nn.Module):
         
 
 class RelationalLayerModel(nn.Module):
-    def __init__(self, in_size, out_size, conv_out_size=8):
+    def __init__(self, in_size, out_size):
         super(RelationalLayerModel, self).__init__()
         
-        self.conv_out_size = conv_out_size
+        self.coord_tensor = None
         
         self.g_fc1 = nn.Linear(in_size, 256)
         self.g_fc2 = nn.Linear(256, 256)
@@ -71,55 +71,56 @@ class RelationalLayerModel(nn.Module):
         self.f_fc2 = nn.Linear(256, 256)
         self.f_fc3 = nn.Linear(256, out_size)
 
-        self.dropout1 = nn.Dropout(p=0.5)
-        self.dropout2 = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.5)
 
-        # prepare coord tensor
-        def build_coord_tensor(s):
-            a = torch.arange(0, s**2)
-            x = (a/s - s/2)/(s/2.)
-            y = (a%s - s/2)/(s/2.)
-            return torch.stack((x,y), dim=1)
-        
-        # broadcast to all batches
-        # TODO: upgrade pytorch and use broadcasting
-        coord_tensor = build_coord_tensor(self.conv_out_size)
-        self.coord_tensor = Variable(coord_tensor)
-        
+                
     def cuda(self):
         self.coord_tensor = self.coord_tensor.cuda()
         super(RelationalLayerModel, self).cuda()
+    
+        # prepare coord tensor
+    def build_coord_tensor(self, b, d):
+        a = torch.arange(0, d**2)
+        x = (a/d - d/2)/(d/2.)
+        y = (a%d - d/2)/(d/2.)
+        ct = torch.stack((x,y), dim=1)
+        # broadcast to all batches
+        # TODO: upgrade pytorch and use broadcasting
+        ct = ct.repeat(b, 1, 1)
+        self.coord_tensor = Variable(ct, require_grad=False)
     
     def forward(self, x, qst):
         # x = (B x 24 x 8 x 8)
         # qst = (B x 128)
         """g"""
-        mb, n_channels, d, _ = x.size()
+        b, k, d, _ = x.size()
         qst_size = qst.size()[1]
 
-        x_flat = x.view(mb, n_channels, d*d).permute(0,2,1)# (B x 64 x 24)
+        x_flat = x.view(b, n_channels, d*d).permute(0,2,1) # (B x 64 x 24)
         
         # add coordinates
-        coords = self.coord_tensor.repeat(mb, 1, 1)        # (B x 64 x 2)
-        x_flat = torch.cat([x_flat, coords], 2)            # (B x 64 x 24+2)
+        if self.coord_tensor is None:
+            self.build_coord_tensor(b, d)                  # (B x 64 x 2)
+            
+        x_flat = torch.cat([x_flat, self.coord_tensor], 2) # (B x 64 x 24+2)
         
         # add question everywhere
         qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
-        qst = qst.repeat(1, self.conv_out_size**2, 1)      # (B x 64 x 128)
+        qst = qst.repeat(1, d**2, 1)                       # (B x 64 x 128)
         qst = torch.unsqueeze(qst, 2)                      # (B x 64 x 1 x 128)
         
         # cast all pairs against each other
         x_i = torch.unsqueeze(x_flat, 1)                   # (B x 1 x 64 x 26)
-        x_i = x_i.repeat(1, self.conv_out_size**2, 1, 1)   # (B x 64 x 64 x 26)
+        x_i = x_i.repeat(1, d**2, 1, 1)                    # (B x 64 x 64 x 26)
         x_j = torch.unsqueeze(x_flat, 2)                   # (B x 64 x 1 x 26)
         x_j = torch.cat([x_j, qst], 3)
-        x_j = x_j.repeat(1, 1, self.conv_out_size**2, 1)   # (B x 64 x 64 x 26+128)
+        x_j = x_j.repeat(1, 1, d**2, 1)                    # (B x 64 x 64 x 26+128)
         
         # concatenate all together
         x_full = torch.cat([x_i, x_j], 3)                  # (B x 64 x 64 x 2*26+128)
         
         # reshape for passing through network
-        x_ = x_full.view(mb * d**4, 2*26 + qst_size)
+        x_ = x_full.view(b * d**4, 2*26 + qst_size)
         x_ = self.g_fc1(x_)
         x_ = F.relu(x_)
         x_ = self.g_fc2(x_)
@@ -130,16 +131,15 @@ class RelationalLayerModel(nn.Module):
         x_ = F.relu(x_)
         
         # reshape again and sum
-        x_g = x_.view(mb, d**4, 256)
+        x_g = x_.view(b, d**4, 256)
         x_g = x_g.sum(1).squeeze(1)
         
         """f"""
         x_f = self.f_fc1(x_g)
         x_f = F.relu(x_f)
-        x_f = self.dropout1(x_f)
         x_f = self.f_fc2(x_f)
         x_f = F.relu(x_f)
-        x_f = self.dropout2(x_f)
+        x_f = self.dropout(x_f)
         x_f = self.f_fc3(x_f)
 
         return F.log_softmax(x_f)
@@ -159,9 +159,7 @@ class RN(nn.Module):
         # (No. of filters per object + coordinate of object)*2 + question vector
         self.rl_in_size = (24 + 2)*2 + hidden_size
         self.rl_out_size = args.adict_size
-        self.rl = RelationalLayerModel(self.rl_in_size, 
-            self.rl_out_size,
-            conv_out_size=8) # calculated from actual convolutional layer parameters
+        self.rl = RelationalLayerModel(self.rl_in_size, self.rl_out_size)
 
     def forward(self, img, qst_idxs):
         x = self.conv(img)

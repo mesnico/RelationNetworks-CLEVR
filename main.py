@@ -143,12 +143,12 @@ def main(args):
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
-    train_transforms = transforms.Compose([ transforms.Resize((128,128)),
+    train_transforms = transforms.Compose([ transforms.Resize((128, 128)),
                                             transforms.Pad(8),
-                                            transforms.RandomCrop((128,128)),
-                                            transforms.RandomRotation(2.8),
+                                            transforms.RandomCrop((128, 128)),
+                                            transforms.RandomRotation(2.8), # .05 rad
                                             transforms.ToTensor()])
-    test_transforms = transforms.Compose([ transforms.Resize((128,128)),
+    test_transforms = transforms.Compose([ transforms.Resize((128, 128)),
                                             transforms.ToTensor()])
 
     clevr_dataset_train = ClevrDataset(args.clevr_dir, True, dictionaries, train_transforms)
