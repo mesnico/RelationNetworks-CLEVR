@@ -59,7 +59,7 @@ class QuestionEmbedModel(nn.Module):
 class RelationalLayerModel(nn.Module):
     def __init__(self, in_size, out_size):
         super(RelationalLayerModel, self).__init__()
-        
+        self.on_gpu = False
         self.coord_tensor = None
         
         self.g_fc1 = nn.Linear(in_size, 256)
@@ -75,7 +75,7 @@ class RelationalLayerModel(nn.Module):
 
                 
     def cuda(self):
-        self.coord_tensor = self.coord_tensor.cuda()
+        self.on_gpu = True
         super(RelationalLayerModel, self).cuda()
     
         # prepare coord tensor
@@ -88,6 +88,8 @@ class RelationalLayerModel(nn.Module):
         # TODO: upgrade pytorch and use broadcasting
         ct = ct.repeat(b, 1, 1)
         self.coord_tensor = Variable(ct, require_grad=False)
+        if self.on_gpu:
+            self.coord_tensor = self.coord_tensor.cuda()
     
     def forward(self, x, qst):
         # x = (B x 24 x 8 x 8)
@@ -96,7 +98,7 @@ class RelationalLayerModel(nn.Module):
         b, k, d, _ = x.size()
         qst_size = qst.size()[1]
 
-        x_flat = x.view(b, n_channels, d*d).permute(0,2,1) # (B x 64 x 24)
+        x_flat = x.view(b, k, d*d).permute(0,2,1)          # (B x 64 x 24)
         
         # add coordinates
         if self.coord_tensor is None:
