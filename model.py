@@ -22,17 +22,17 @@ class ConvInputModel(nn.Module):
     def forward(self, img):
         """convolution"""
         x = self.conv1(img)
-        x = F.relu(x)
         x = self.batchNorm1(x)
+        x = F.relu(x)
         x = self.conv2(x)
-        x = F.relu(x)
         x = self.batchNorm2(x)
+        x = F.relu(x)
         x = self.conv3(x)
-        x = F.relu(x)
         x = self.batchNorm3(x)
-        x = self.conv4(x)
         x = F.relu(x)
+        x = self.conv4(x)
         x = self.batchNorm4(x)
+        x = F.relu(x)
         return x
 
 
@@ -40,10 +40,10 @@ class QuestionEmbedModel(nn.Module):
     def __init__(self, in_size, embed=32, hidden=128):
         super(QuestionEmbedModel, self).__init__()
         
-        self.wembedding = nn.Embedding(in_size + 1, embed, padding_idx=0)  #word embeddings have size 32. Indexes 0 output 0 vectors (variable len questions)
+        self.wembedding = nn.Embedding(in_size + 1, embed)  #word embeddings have size 32
         self.lstm = nn.LSTM(embed, hidden, batch_first=True)  # Input dim is 32, output dim is the question embedding
         
-    def forward(self, question):   
+    def forward(self, question):
         #calculate question embeddings
         wembed = self.wembedding(question)
         # wembed = wembed.permute(1,0,2) # in lstm minibatches are in the 2-nd dimension
@@ -140,8 +140,8 @@ class RelationalLayerModel(nn.Module):
         x_f = self.f_fc1(x_g)
         x_f = F.relu(x_f)
         x_f = self.f_fc2(x_f)
-        x_f = F.relu(x_f)
         x_f = self.dropout(x_f)
+        x_f = F.relu(x_f)
         x_f = self.f_fc3(x_f)
 
         return F.log_softmax(x_f)

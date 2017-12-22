@@ -22,7 +22,7 @@ class ClevrDataset(Dataset):
             json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_val_questions.json')
             self.img_dir = os.path.join(clevr_dir, 'images', 'val')
 
-        with open(json_filename, 'rb') as json_file:
+        with open(json_filename, 'r') as json_file:
             self.questions = json.load(json_file)['questions']
         self.clevr_dir = clevr_dir
         self.transform = transform
