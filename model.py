@@ -87,7 +87,7 @@ class RelationalLayerModel(nn.Module):
         # broadcast to all batches
         # TODO: upgrade pytorch and use broadcasting
         ct = ct.repeat(b, 1, 1)
-        self.coord_tensor = Variable(ct, require_grad=False)
+        self.coord_tensor = Variable(ct, requires_grad=False)
         if self.on_gpu:
             self.coord_tensor = self.coord_tensor.cuda()
     
