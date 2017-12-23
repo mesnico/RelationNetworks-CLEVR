@@ -73,20 +73,19 @@ class RelationalLayerModel(nn.Module):
 
         self.dropout = nn.Dropout(p=0.5)
 
-                
     def cuda(self):
         self.on_gpu = True
         super(RelationalLayerModel, self).cuda()
     
         # prepare coord tensor
     def build_coord_tensor(self, b, d):
-        a = torch.arange(0, d**2)
-        x = (a/d - d/2)/(d/2.)
-        y = (a%d - d/2)/(d/2.)
-        ct = torch.stack((x,y), dim=1)
+        coords = torch.linspace(-d/2., d/2., d)
+        x = coords.unsqueeze(0).repeat(d, 1)
+        y = coords.unsqueeze(1).repeat(1, d)
+        ct = torch.stack((x,y))
         # broadcast to all batches
         # TODO: upgrade pytorch and use broadcasting
-        ct = ct.repeat(b, 1, 1)
+        ct = ct.unsqueeze(0).repeat(b, 1, 1, 1)
         self.coord_tensor = Variable(ct, requires_grad=False)
         if self.on_gpu:
             self.coord_tensor = self.coord_tensor.cuda()
@@ -97,14 +96,15 @@ class RelationalLayerModel(nn.Module):
         """g"""
         b, k, d, _ = x.size()
         qst_size = qst.size()[1]
-
-        x_flat = x.view(b, k, d*d).permute(0,2,1)          # (B x 64 x 24)
         
         # add coordinates
         if self.coord_tensor is None:
-            self.build_coord_tensor(b, d)                  # (B x 64 x 2)
+            self.build_coord_tensor(b, d)                  # (B x 2 x 8 x 8)
             
-        x_flat = torch.cat([x_flat, self.coord_tensor], 2) # (B x 64 x 24+2)
+        x_coords = torch.cat([x, self.coord_tensor], 1)    # (B x 24+2 x 8 x 8)
+
+        x_flat = x_coords.view(b, k+2, d*d)                # (B x 24+2 x 64)
+        x_flat = x_flat.permute(0, 2, 1)                   # (B x 64 x 24+2)
         
         # add question everywhere
         qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)

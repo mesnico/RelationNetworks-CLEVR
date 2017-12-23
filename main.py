@@ -124,7 +124,7 @@ def test(data, model, epoch, args):
             progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy)))
             
     accuracy = corrects / n_samples
-    print('Test Epoch {}: Accuracy = {:.2%} ({}/{})'.format(epoch, accuracy, corrects, n_samples))
+    print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{})'.format(epoch, accuracy, corrects, n_samples))
 
 
 def main(args):
@@ -157,7 +157,7 @@ def main(args):
     #Initialize Clevr dataset loaders
     clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
                             shuffle=True, num_workers=8, collate_fn=utils.collate_samples)
-    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size / 4,
+    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size / 3,
                             shuffle=False, num_workers=8, collate_fn=utils.collate_samples)
                             
     print('CLEVR dataset initialized!')   
@@ -204,7 +204,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch Relational-Network CLEVR')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--epochs', type=int, default=200, metavar='N',
+    parser.add_argument('--epochs', type=int, default=350, metavar='N',
                         help='number of epochs to train (default: 200)')
     parser.add_argument('--lr', type=float, default=0.00025, metavar='LR',
                         help='learning rate (default: 0.00025)')
