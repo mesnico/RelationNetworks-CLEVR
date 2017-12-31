@@ -1,6 +1,7 @@
 import os
 import json
 import utils
+import torch
 
 from PIL import Image
 from torch.utils.data import Dataset
@@ -28,6 +29,10 @@ class ClevrDataset(Dataset):
         self.transform = transform
         self.dictionaries = dictionaries
 
+        #calculate longest question length
+        qs_len = [len(e['question'].split()) for e in self.questions]   #TODO: punctuation?
+        self.max_qlength = max(qs_len)
+
     def __len__(self):
         return len(self.questions)
 
@@ -36,10 +41,13 @@ class ClevrDataset(Dataset):
         img_filename = os.path.join(self.img_dir, current_question['image_filename'])
         image = Image.open(img_filename).convert('RGB')
         
+        pad_question = torch.LongTensor(self.max_qlength).zero_()
         question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'])
+        pad_question[:len(question)] = question
+        
         answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'])
 
-        sample = {'image': image, 'question': question, 'answer': answer}
+        sample = {'image': image, 'question': pad_question, 'answer': answer}
 
         if self.transform:
             sample['image'] = self.transform(sample['image'])

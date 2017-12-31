@@ -29,7 +29,7 @@ from clevr_dataset_connector import ClevrDataset
 '''
     Build questions and answers dictionaries over the entire dataset
 '''
-def build_dictionaries(clevr_dir):
+def build_dictionaries(clevr_dir):	#TODO: punctuation?
     cached_dictionaries = os.path.join(clevr_dir, 'questions', 'CLEVR_built_dictionaries.pkl')
     if os.path.exists(cached_dictionaries):
         with open(cached_dictionaries, 'rb') as f:
