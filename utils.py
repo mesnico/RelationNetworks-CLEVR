@@ -1,11 +1,12 @@
 import torch
+import re
 
 '''
     Outputs indexes of the dictionary corresponding to the words in the sequence. Case insensitive
 '''
 def to_dictionary_indexes(dictionary, sentence):
-    split = sentence.split()	#TODO: punctuation?
-    idxs = torch.LongTensor([dictionary[w.lower()] for w in split])
+    split = tokenize(sentence)
+    idxs = torch.LongTensor([dictionary[w] for w in split])
     return idxs
 
 '''
@@ -32,4 +33,16 @@ def collate_samples(batch):
     )
     
     return collated_batch
+
+def tokenize(sentence):
+    #punctuation should be separated from the words
+    s = re.sub('([.,;:!?()])', r' \1 ', sentence)
+    s = re.sub('\s{2,}', ' ', s)
+
+    #tokenize
+    split = s.split()
+
+    #normalize all words to lowercase
+    lower = [w.lower() for w in split]
+    return lower
 
