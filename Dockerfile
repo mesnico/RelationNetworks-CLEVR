@@ -51,7 +51,7 @@ RUN conda install -y --name pytorch-py36 -c soumith \
 
 # Install PyTorch and Torchvision
 RUN conda install -y --name pytorch-py36 -c soumith \
-    pytorch=0.2.0 torchvision=0.1.9 \
+    pytorch=0.3.0 torchvision=0.2.0 \
  && conda clean -ya
 
 # Install HDF5 Python bindings
@@ -76,7 +76,7 @@ RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
  && sudo rm -rf /var/lib/apt/lists/*
 RUN conda install -y --name pytorch-py36 -c menpo opencv3 tqdm \
  && conda clean -ya
-RUN pip install --no-cache --upgrade torchvision
+# RUN pip install --ignore-installed --no-cache torchvision
 
 # Set the default command to python3
 CMD ["python3"]

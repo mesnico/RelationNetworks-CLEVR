@@ -1,11 +1,12 @@
 import torch
+import re
 
 '''
     Outputs indexes of the dictionary corresponding to the words in the sequence. Case insensitive
 '''
 def to_dictionary_indexes(dictionary, sentence):
-    split = sentence.split()
-    idxs = torch.LongTensor([dictionary[w.lower()] for w in split])
+    split = tokenize(sentence)
+    idxs = torch.LongTensor([dictionary[w] for w in split])
     return idxs
 
 '''
@@ -18,18 +19,30 @@ def collate_samples(batch):
     
     # questions are not fixed length: they must be padded to the maximum length 
     # in this batch, in order to be inserted in a tensor
-    batch_size = len(batch)
+    '''batch_size = len(batch)
     max_len = max(map(len, questions))
     
     padded_questions = torch.LongTensor(batch_size, max_len).zero_()
     for i, q in enumerate(questions):
-        padded_questions[i,:len(q)] = q
+        padded_questions[i,:len(q)] = q'''
     
     collated_batch = dict(
         image=torch.stack(images),
         answer=torch.stack(answers),
-        question=torch.stack(padded_questions)
+        question=torch.stack(questions)
     )
     
     return collated_batch
+
+def tokenize(sentence):
+    #punctuation should be separated from the words
+    s = re.sub('([.,;:!?()])', r' \1 ', sentence)
+    s = re.sub('\s{2,}', ' ', s)
+
+    #tokenize
+    split = s.split()
+
+    #normalize all words to lowercase
+    lower = [w.lower() for w in split]
+    return lower
 

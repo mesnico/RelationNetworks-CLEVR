@@ -42,13 +42,12 @@ def build_dictionaries(clevr_dir):
     with open(json_train_filename, "r") as f:
         questions = json.load(f)['questions']
         for q in tqdm(questions):
-            question = q['question'].split()
+            question = utils.tokenize(q['question'])
             answer = q['answer']
             #pdb.set_trace()
             for word in question:
-                w = word.lower()	#no distinction between initial words and the others
-                if w not in quest_to_ix:
-                    quest_to_ix[w] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
+                if word not in quest_to_ix:
+                    quest_to_ix[word] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
             
             a = answer.lower()
             if a not in answ_to_ix:
@@ -57,7 +56,7 @@ def build_dictionaries(clevr_dir):
     ret = (quest_to_ix, answ_to_ix)    
     with open(cached_dictionaries, 'wb') as f:
         pickle.dump(ret, f)
-        
+
     return ret
 
 
@@ -157,7 +156,7 @@ def main(args):
     #Initialize Clevr dataset loaders
     clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
                             shuffle=True, num_workers=8, collate_fn=utils.collate_samples)
-    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size / 3,
+    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
                             shuffle=False, num_workers=8, collate_fn=utils.collate_samples)
                             
     print('CLEVR dataset initialized!')   
