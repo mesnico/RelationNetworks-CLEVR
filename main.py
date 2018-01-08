@@ -89,8 +89,8 @@ def train(data, model, optimizer, epoch, args):
         loss.backward()
 
         # Gradient Clipping
-        #for p in model.module.text.parameters():
-        #    p.grad.data.clamp_(-10, 10)
+        for p in model.parameters():
+            p.grad.data.clamp_(-10, 10)
 
         optimizer.step()
         
