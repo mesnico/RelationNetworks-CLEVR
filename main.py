@@ -87,6 +87,11 @@ def train(data, model, optimizer, epoch, args):
         output = model(img, qst)
         loss = F.nll_loss(output, label)
         loss.backward()
+
+        # Gradient Clipping
+        #for p in model.module.text.parameters():
+        #    p.grad.data.clamp_(-10, 10)
+
         optimizer.step()
         
         avg_loss += loss.data[0]
@@ -182,7 +187,7 @@ def main(args):
             model.load_state_dict(checkpoint)
             print('==> loaded checkpoint {}'.format(filename))
 
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
     print('Training ({} epochs) is starting...'.format(args.epochs))
     progress_bar = trange(1, args.epochs + 1) 

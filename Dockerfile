@@ -58,7 +58,7 @@ RUN conda install -y --name pytorch-py36 -c soumith \
 RUN conda install -y --name pytorch-py36 \
     h5py \
  && conda clean -ya
-RUN pip install h5py-cache
+RUN pip install h5py-cache tqdm
 
 # Install Torchnet, a high-level framework for PyTorch
 # RUN pip install git+https://github.com/pytorch/tnt.git@master
@@ -69,13 +69,6 @@ RUN pip install h5py-cache
 # Install Graphviz
 # RUN conda install -y --name pytorch-py36 graphviz=2.38.0 \
 # && conda clean -ya
-# Install OpenCV3 Python bindings
-RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
-    libgtk2.0-0 \
-    libcanberra-gtk-module \
- && sudo rm -rf /var/lib/apt/lists/*
-RUN conda install -y --name pytorch-py36 -c menpo opencv3 tqdm \
- && conda clean -ya
 
 # Set the default command to python3
 CMD ["python3"]

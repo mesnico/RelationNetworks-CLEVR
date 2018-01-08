@@ -98,8 +98,8 @@ class RelationalLayerModel(nn.Module):
         qst_size = qst.size()[1]
         
         # add coordinates
-        #if self.coord_tensor is None:
-        self.build_coord_tensor(b, d)                  # (B x 2 x 8 x 8)
+        if self.coord_tensor is None:
+            self.build_coord_tensor(b, d)                  # (B x 2 x 8 x 8)
             
         x_coords = torch.cat([x, self.coord_tensor], 1)    # (B x 24+2 x 8 x 8)
 
