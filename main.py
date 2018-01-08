@@ -156,7 +156,7 @@ def main(args):
     #Initialize Clevr dataset loaders
     clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
                             shuffle=True, num_workers=8, collate_fn=utils.collate_samples)
-    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
+    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size / 3,
                             shuffle=False, num_workers=8, collate_fn=utils.collate_samples)
                             
     print('CLEVR dataset initialized!')   

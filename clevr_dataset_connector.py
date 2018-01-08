@@ -46,6 +46,9 @@ class ClevrDataset(Dataset):
         pad_question = torch.LongTensor(self.max_qlength).zero_()
         question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'])
         pad_question[:len(question)] = question
+
+        #invert question indexes
+        pad_question = pad_question.index_select(0,torch.arange(self.max_qlength-1, -1, -1).long())
         
         answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'])
 

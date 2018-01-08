@@ -76,7 +76,6 @@ RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
  && sudo rm -rf /var/lib/apt/lists/*
 RUN conda install -y --name pytorch-py36 -c menpo opencv3 tqdm \
  && conda clean -ya
-# RUN pip install --ignore-installed --no-cache torchvision
 
 # Set the default command to python3
 CMD ["python3"]
