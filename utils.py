@@ -19,17 +19,20 @@ def collate_samples(batch):
     
     # questions are not fixed length: they must be padded to the maximum length 
     # in this batch, in order to be inserted in a tensor
-    '''batch_size = len(batch)
+    batch_size = len(batch)
     max_len = max(map(len, questions))
     
     padded_questions = torch.LongTensor(batch_size, max_len).zero_()
     for i, q in enumerate(questions):
-        padded_questions[i,:len(q)] = q'''
+        padded_questions[i,:len(q)] = q
+
+    #invert question indexes
+    padded_questions = padded_questions.index_select(1,torch.arange(max_len-1, -1, -1).long())
     
     collated_batch = dict(
         image=torch.stack(images),
         answer=torch.stack(answers),
-        question=torch.stack(questions)
+        question=torch.stack(padded_questions)
     )
     
     return collated_batch

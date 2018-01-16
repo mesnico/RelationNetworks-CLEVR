@@ -29,11 +29,6 @@ class ClevrDataset(Dataset):
         self.transform = transform
         self.dictionaries = dictionaries
 
-        #calculate longest question length
-        qs_len = [len(utils.tokenize(e['question'])) for e in self.questions]
-        self.max_qlength = max(qs_len)
-        print ('Longest question: {} words'.format(self.max_qlength))
-
     def __len__(self):
         return len(self.questions)
 
@@ -42,17 +37,10 @@ class ClevrDataset(Dataset):
         img_filename = os.path.join(self.img_dir, current_question['image_filename'])
         image = Image.open(img_filename).convert('RGB')
         
-        #pad question to max length
-        pad_question = torch.LongTensor(self.max_qlength).zero_()
-        question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'])
-        pad_question[:len(question)] = question
-
-        #invert question indexes
-        pad_question = pad_question.index_select(0,torch.arange(self.max_qlength-1, -1, -1).long())
-        
+        question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'])       
         answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'])
 
-        sample = {'image': image, 'question': pad_question, 'answer': answer}
+        sample = {'image': image, 'question': question, 'answer': answer}
 
         if self.transform:
             sample['image'] = self.transform(sample['image'])
