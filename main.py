@@ -222,6 +222,8 @@ if __name__ == '__main__':
                         help='resume from model stored')
     parser.add_argument('--clevr-dir', type=str, default='.',
                         help='base directory of CLEVR dataset')
+    parser.add_argument('--model', type=str, choices=['original','ir'], default='original',
+                    	help='which model is used to train the network')
 
     args = parser.parse_args()
     main(args)
