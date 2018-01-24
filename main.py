@@ -4,6 +4,7 @@ Pytorch implementation of "A simple neural network module for relational reasoni
 from __future__ import print_function
 
 import os
+import re
 import pdb
 import json
 import pickle
@@ -17,6 +18,7 @@ import torch.nn.functional as F
 
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
+from torch.nn.utils import clip_grad_norm
 from torchvision import transforms 
 
 from tqdm import tqdm, trange
@@ -89,9 +91,7 @@ def train(data, model, optimizer, epoch, args):
         loss.backward()
 
         # Gradient Clipping
-        for p in model.parameters():
-            p.grad.data.clamp_(-10, 10)
-
+        clip_grad_norm(model.parameters(), 10)
         optimizer.step()
         
         avg_loss += loss.data[0]
@@ -132,7 +132,7 @@ def test(data, model, epoch, args):
 
 
 def main(args):
-    model_dirs = './model_b{}_lr{}'.format(args.batch_size, args.lr)
+    model_dirs = './model_{}_b{}_lr{}'.format(args.model, args.batch_size, args.lr)
     if not os.path.exists(model_dirs):
         os.makedirs(model_dirs)
     
@@ -179,6 +179,7 @@ def main(args):
     if args.cuda:
         model.cuda()
 
+    start_epoch = 1
     if args.resume:
         filename = os.path.join(model_dirs, args.resume)
         if os.path.isfile(filename):
@@ -186,11 +187,12 @@ def main(args):
             checkpoint = torch.load(filename)
             model.load_state_dict(checkpoint)
             print('==> loaded checkpoint {}'.format(filename))
+            start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
     print('Training ({} epochs) is starting...'.format(args.epochs))
-    progress_bar = trange(1, args.epochs + 1) 
+    progress_bar = trange(start_epoch, args.epochs + 1)
     for epoch in progress_bar:
         # TRAIN
         progress_bar.set_description('TRAIN')
@@ -209,7 +211,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--epochs', type=int, default=350, metavar='N',
-                        help='number of epochs to train (default: 200)')
+                        help='number of epochs to train (default: 350)')
     parser.add_argument('--lr', type=float, default=0.00025, metavar='LR',
                         help='learning rate (default: 0.00025)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -227,4 +229,3 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     main(args)
-
