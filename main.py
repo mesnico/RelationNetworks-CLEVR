@@ -19,14 +19,15 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm
-from torchvision import transforms 
+from torchvision import transforms
+from torchvision.datasets import ImageFolder
 
 from tqdm import tqdm, trange
 
 import utils
 # import transforms
 from model import RN
-from clevr_dataset_connector import ClevrDataset
+from clevr_dataset_connector import ClevrDataset, ClevrDatasetImages
 
 '''
     Build questions and answers dictionaries over the entire dataset
@@ -131,8 +132,70 @@ def test(data, model, epoch, args):
     print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{})'.format(epoch, accuracy, corrects, n_samples))
 
 
+def extract_features_rl(data, max_features_file, avg_features_file, model, args):
+
+    lay, io = args.extract_features.split(':')
+
+    maxf = []
+    avgf = []
+
+    def hook_function(m, i, o):
+            nonlocal maxf, avgf
+            '''print(
+                'm:', type(m),
+                '\ni:', type(i),
+                    '\n   len:', len(i),
+                    '\n   type:', type(i[0]),
+                    '\n   data size:', i[0].data.size(),
+                    '\n   data type:', i[0].data.type(),
+                '\no:', type(o),
+                    '\n   data size:', o.data.size(),
+                    '\n   data type:', o.data.type(),
+            )'''
+            if io=='i':
+                z = i[0]
+            else:
+                z = o
+            #aggregate features
+            d4_combinations = z.size()[0] // args.batch_size
+            x_ = z.view(args.batch_size,d4_combinations,z.size()[1])
+            maxf = x_.max(1)[0].squeeze()
+            avgf = x_.mean(1).squeeze()
+            
+            maxf = maxf.data.cpu().numpy()
+            avgf = avgf.data.cpu().numpy()
+
+    model.eval()    
+
+    progress_bar = tqdm(data)
+    progress_bar.set_description('FEATURES EXTRACTION from {}'.format(args.extract_features))
+    max_features = []
+    avg_features = []
+    for batch_idx, sample_batched in enumerate(progress_bar):
+        qst = torch.LongTensor(args.batch_size, 1).zero_()
+        qst = Variable(qst)
+
+        img = Variable(sample_batched)
+        if args.cuda:
+            qst = qst.cuda()
+            img = img.cuda()
+
+        extraction_layer = model._modules.get('rl')._modules.get(lay)
+        h = extraction_layer.register_forward_hook(hook_function)
+        model(img, qst)
+        h.remove()
+
+        max_features.append((batch_idx,maxf))
+        avg_features.append((batch_idx,maxf))
+    
+    pickle.dump(max_features, max_features_file)
+    pickle.dump(avg_features, avg_features_file)
+
+
+
 def main(args):
     model_dirs = './model_{}_b{}_lr{}'.format(args.model, args.batch_size, args.lr)
+    features_dirs = './features'
     if not os.path.exists(model_dirs):
         os.makedirs(model_dirs)
     
@@ -157,12 +220,15 @@ def main(args):
 
     clevr_dataset_train = ClevrDataset(args.clevr_dir, True, dictionaries, train_transforms)
     clevr_dataset_test = ClevrDataset(args.clevr_dir, False, dictionaries, test_transforms) 
+    clevr_dataset_feat_extraction = ClevrDatasetImages(args.clevr_dir,'val', test_transforms)
 
     #Initialize Clevr dataset loaders
     clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
                             shuffle=True, num_workers=8, collate_fn=utils.collate_samples)
     clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size / 3,
                             shuffle=False, num_workers=8, collate_fn=utils.collate_samples)
+    clevr_feat_extraction_loader = DataLoader(clevr_dataset_feat_extraction, batch_size=args.batch_size,
+                            shuffle=False, num_workers=8, drop_last=True)
                             
     print('CLEVR dataset initialized!')   
 
@@ -191,18 +257,31 @@ def main(args):
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
-    print('Training ({} epochs) is starting...'.format(args.epochs))
-    progress_bar = trange(start_epoch, args.epochs + 1)
-    for epoch in progress_bar:
-        # TRAIN
-        progress_bar.set_description('TRAIN')
-        train(clevr_train_loader, model, optimizer, epoch, args)
-        # TEST
-        progress_bar.set_description('TEST')
-        test(clevr_test_loader, model, epoch, args)
-        # SAVE MODEL
-        fname = 'RN_epoch_{:02d}.pth'.format(epoch)
-        torch.save(model.state_dict(), os.path.join(model_dirs, fname))
+    if args.extract_features != None:
+        if not os.path.exists(features_dirs):
+            os.makedirs(features_dirs)
+    
+        max_features = os.path.join(features_dirs,'max_features.pickle')
+        avg_features = os.path.join(features_dirs,'avg_features.pickle')
+
+        max_features = open(max_features, 'wb')
+        avg_features = open(avg_features, 'wb')
+
+        extract_features_rl(clevr_feat_extraction_loader,max_features,avg_features, model, args)
+    else:
+
+        print('Training ({} epochs) is starting...'.format(args.epochs))
+        progress_bar = trange(start_epoch, args.epochs + 1)
+        for epoch in progress_bar:
+            # TRAIN
+            progress_bar.set_description('TRAIN')
+            train(clevr_train_loader, model, optimizer, epoch, args)
+            # TEST
+            progress_bar.set_description('TEST')
+            test(clevr_test_loader, model, epoch, args)
+            # SAVE MODEL
+            fname = 'RN_epoch_{:02d}.pth'.format(epoch)
+            torch.save(model.state_dict(), os.path.join(model_dirs, fname))
         
     
 if __name__ == '__main__':
@@ -226,6 +305,8 @@ if __name__ == '__main__':
                         help='base directory of CLEVR dataset')
     parser.add_argument('--model', type=str, choices=['original','ir'], default='original',
                     	help='which model is used to train the network')
+    parser.add_argument('--extract-features', type=str, default=None,
+                    	help='layer of the RN from which features are extracted')
 
     args = parser.parse_args()
     main(args)
