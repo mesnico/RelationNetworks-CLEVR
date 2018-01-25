@@ -84,10 +84,10 @@ class RelationalLayerIR(RelationalLayerBase):
     def __init__(self, in_size, out_size, qst_size):
         super().__init__(in_size, out_size, qst_size)
         
-        self.g_fc1 = nn.Linear(in_size, 2048)
-        self.g_fc2 = nn.Linear(2048, 1024)
-        self.g_fc3 = nn.Linear(1024, 512)
-        self.g_fc4 = nn.Linear(512, 256)
+        self.g_fc1 = nn.Linear(in_size, 256)
+        self.g_fc2 = nn.Linear(256, 256)
+        self.g_fc3 = nn.Linear(256, 256)
+        self.g_fc4 = nn.Linear(256, 256)
 
         self.h_fc1 = nn.Linear(256+qst_size, 256)
 
