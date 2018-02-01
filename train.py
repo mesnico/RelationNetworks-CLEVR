@@ -22,40 +22,6 @@ from clevr_dataset_connector import ClevrDataset
 from model import RN
 
 
-def build_dictionaries(clevr_dir):
-    """
-    Build questions and answers dictionaries over the entire dataset
-    """
-    cached_dictionaries = os.path.join(clevr_dir, 'questions', 'CLEVR_built_dictionaries.pkl')
-    if os.path.exists(cached_dictionaries):
-        with open(cached_dictionaries, 'rb') as f:
-            return pickle.load(f)
-
-    quest_to_ix = {}
-    answ_to_ix = {}
-    json_train_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
-    # load all words from all training data
-    with open(json_train_filename, "r") as f:
-        questions = json.load(f)['questions']
-        for q in tqdm(questions):
-            question = utils.tokenize(q['question'])
-            answer = q['answer']
-            # pdb.set_trace()
-            for word in question:
-                if word not in quest_to_ix:
-                    quest_to_ix[word] = len(quest_to_ix) + 1  # one based indexing; zero is reserved for padding
-
-            a = answer.lower()
-            if a not in answ_to_ix:
-                answ_to_ix[a] = len(answ_to_ix) + 1
-
-    ret = (quest_to_ix, answ_to_ix)
-    with open(cached_dictionaries, 'wb') as f:
-        pickle.dump(ret, f)
-
-    return ret
-
-
 def train(data, model, optimizer, epoch, args):
     model.train()
 
@@ -126,7 +92,7 @@ def main(args):
         torch.cuda.manual_seed(args.seed)
 
     print('Building word dictionaries from all the words in the dataset...')
-    dictionaries = build_dictionaries(args.clevr_dir)
+    dictionaries = utils.build_dictionaries(args.clevr_dir)
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')

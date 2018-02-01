@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 
+import utils
 from clevr_dataset_connector import ClevrDatasetImages
 from model import RN
 
@@ -97,6 +98,12 @@ def main(args):
     max_features = os.path.join(args.features_dirs, 'max_features.pickle')
     avg_features = os.path.join(args.features_dirs, 'avg_features.pickle')
 
+    print('Building word dictionaries from all the words in the dataset...')
+    dictionaries = utils.build_dictionaries(args.clevr_dir)
+    print('Word dictionary completed!')
+
+    args.qdict_size = len(dictionaries[0])
+    args.adict_size = len(dictionaries[1])
     model = RN(args)
 
     if torch.cuda.device_count() > 1 and args.cuda:
@@ -125,7 +132,7 @@ if __name__ == '__main__':
                         help='model checkpoint to use for feature extraction')
     parser.add_argument('--model', type=str, choices=['original', 'ir'], default='original',
                         help='which model is used to train the network')
-    parser.add_argument('--layer', type=str, default=None,
+    parser.add_argument('--layer', type=str, default=None,  # TODO set a default layer
                         help='layer of the RN from which features are extracted')
     parser.add_argument('--clevr-dir', type=str, default='.',
                         help='base directory of CLEVR dataset')
