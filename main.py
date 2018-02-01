@@ -57,6 +57,7 @@ def build_dictionaries(clevr_dir):
 
     return ret
 
+
 def main(args):
     args.model_dirs = './model_{}_b{}_lr{}'.format(args.model, args.batch_size, args.lr)
     args.features_dirs = './features'
@@ -89,7 +90,7 @@ def main(args):
     #Initialize Clevr dataset loaders
     clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
                             shuffle=True, num_workers=8, collate_fn=utils.collate_samples)
-    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size / 3,
+    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
                             shuffle=False, num_workers=8, collate_fn=utils.collate_samples)
     clevr_feat_extraction_loader = DataLoader(clevr_dataset_feat_extraction, batch_size=args.batch_size,
                             shuffle=False, num_workers=8, drop_last=True)
@@ -99,8 +100,7 @@ def main(args):
     #Build the model
     args.qdict_size = len(dictionaries[0])
     args.adict_size = len(dictionaries[1])
-    model = RN(args)
-    
+    model = RN(args)    
     
     if torch.cuda.device_count() > 1 and args.cuda:
         model = torch.nn.DataParallel(model)
@@ -136,6 +136,8 @@ if __name__ == '__main__':
                         help='number of epochs to train (default: 350)')
     parser.add_argument('--lr', type=float, default=0.00025, metavar='LR',
                         help='learning rate (default: 0.00025)')
+    parser.add_argument('--clip-norm', type=int, default=10,
+                        help='max norm for gradients; set to 0 to disable gradient clipping (default: 10)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--seed', type=int, default=1, metavar='S',

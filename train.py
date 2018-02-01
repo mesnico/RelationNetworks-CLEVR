@@ -6,6 +6,7 @@ import torch.optim as optim
 import torch
 import os
 
+
 def start(start_epoch, clevr_train_loader, clevr_test_loader, model, args):
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
@@ -21,6 +22,7 @@ def start(start_epoch, clevr_train_loader, clevr_test_loader, model, args):
         # SAVE MODEL
         fname = 'RN_epoch_{:02d}.pth'.format(epoch)
         torch.save(model.state_dict(), os.path.join(args.model_dirs, fname))
+
 
 def load_tensor_data(data_batch, cuda, invert_questions, volatile=False):
     # prepare input
@@ -57,14 +59,17 @@ def train(data, model, optimizer, epoch, args):
         loss.backward()
 
         # Gradient Clipping
-        clip_grad_norm(model.parameters(), 10)
+        if args.clip_norm:
+            clip_grad_norm(model.parameters(), args.clip_norm)
+            
         optimizer.step()
         
+        # Show progress
+        progress_bar.set_postfix(dict(loss=loss.data[0]))
         avg_loss += loss.data[0]
         
         if batch_idx % args.log_interval == 0:
             avg_loss /= args.log_interval
-            progress_bar.set_postfix(dict(loss=avg_loss))
             processed = batch_idx * args.batch_size
             n_samples = len(data) * args.batch_size
             progress = float(processed) / n_samples
@@ -89,9 +94,8 @@ def test(data, model, epoch, args):
         corrects += (pred == label.data).sum()
         n_samples += len(label)
         
-        if batch_idx % args.log_interval == 0:
-            accuracy = corrects / n_samples
-            progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy)))
-            
+        accuracy = corrects / n_samples
+        progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy)))
+                        
     accuracy = corrects / n_samples
     print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{})'.format(epoch, accuracy, corrects, n_samples))
