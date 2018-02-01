@@ -22,12 +22,18 @@ def start(start_epoch, clevr_train_loader, clevr_test_loader, model, args):
         fname = 'RN_epoch_{:02d}.pth'.format(epoch)
         torch.save(model.state_dict(), os.path.join(args.model_dirs, fname))
 
-def load_tensor_data(data_batch, cuda, volatile=False):
+def load_tensor_data(data_batch, cuda, invert_questions, volatile=False):
     # prepare input
     var_kwargs = dict(volatile=True) if volatile else dict(requires_grad=False)
     
+    qst = data_batch['question']
+    if invert_questions:
+        #invert question indexes in this batch
+        qst_len = qst.size()[1]
+        qst = qst.index_select(1,torch.arange(qst_len-1, -1, -1).long())
+
     img = Variable(data_batch['image'], **var_kwargs)
-    qst = Variable(data_batch['question'], **var_kwargs)
+    qst = Variable(qst, **var_kwargs)
     label = Variable(data_batch['answer'], **var_kwargs)
     if cuda:
        img, qst, label = img.cuda(), qst.cuda(), label.cuda()
@@ -42,7 +48,7 @@ def train(data, model, optimizer, epoch, args):
     avg_loss = 0.0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
-        img, qst, label = load_tensor_data(sample_batched, args.cuda)
+        img, qst, label = load_tensor_data(sample_batched, args.cuda, args.invert_questions)
         
         # forward and backward pass
         optimizer.zero_grad()
@@ -74,7 +80,7 @@ def test(data, model, epoch, args):
     n_samples = 0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
-        img, qst, label = load_tensor_data(sample_batched, args.cuda, volatile=True)
+        img, qst, label = load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
         
         output = model(img, qst)
         

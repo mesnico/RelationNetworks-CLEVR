@@ -150,6 +150,8 @@ if __name__ == '__main__':
                     	help='which model is used to train the network')
     parser.add_argument('--extract-features', type=str, default=None,
                     	help='layer of the RN from which features are extracted')
+    parser.add_argument('--invert-questions', action='store_true', default=False,
+                        help='invert the question word indexes for LSTM processing')
 
     args = parser.parse_args()
     main(args)

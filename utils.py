@@ -25,9 +25,6 @@ def collate_samples(batch):
     padded_questions = torch.LongTensor(batch_size, max_len).zero_()
     for i, q in enumerate(questions):
         padded_questions[i,:len(q)] = q
-
-    #invert question indexes
-    padded_questions = padded_questions.index_select(1,torch.arange(max_len-1, -1, -1).long())
     
     collated_batch = dict(
         image=torch.stack(images),

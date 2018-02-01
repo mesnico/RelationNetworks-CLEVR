@@ -48,9 +48,8 @@ class QuestionEmbedModel(nn.Module):
         # wembed = wembed.permute(1,0,2) # in lstm minibatches are in the 2-nd dimension
         self.lstm.flatten_parameters()
         _, hidden = self.lstm(wembed) # initial state is set to zeros by default
-        qst_emb = hidden[1] # last layer of the lstm. qst = (B x 128)
-        # take the hidden state at the last LSTM layer (as of now, there is only one LSTM layer)
-        qst_emb = qst_emb[-1]
+        qst_emb = hidden[0] # hidden state of the lstm. qst = (B x 128)
+        qst_emb = qst_emb[-1] # take the last LSTM layer (as of now, there is only one LSTM layer)
         
         return qst_emb
 
