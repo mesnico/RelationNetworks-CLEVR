@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+import matplotlib.pyplot as plt
+
 class ConvInputModel(nn.Module):
     def __init__(self):
         super(ConvInputModel, self).__init__()
@@ -104,7 +106,7 @@ class RelationalLayerIR(RelationalLayerBase):
         #qst_size = qst.size()[1]
         
         # add coordinates
-        if self.coord_tensor is None:
+        if self.coord_tensor is None or torch.cuda.device_count() == 1:
             self.build_coord_tensor(b, d)                  # (B x 2 x 8 x 8)
             
         x_coords = torch.cat([x, self.coord_tensor], 1)    # (B x 24+2 x 8 x 8)
@@ -185,7 +187,7 @@ class RelationalLayerOriginal(RelationalLayerBase):
         qst_size = qst.size()[1]
         
         # add coordinates
-        if self.coord_tensor is None:
+        if self.coord_tensor is None or torch.cuda.device_count() == 1:
             self.build_coord_tensor(b, d)                  # (B x 2 x 8 x 8)
             
         x_coords = torch.cat([x, self.coord_tensor], 1)    # (B x 24+2 x 8 x 8)

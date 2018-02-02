@@ -8,34 +8,51 @@ from tqdm import tqdm
 
 
 def build_dictionaries(clevr_dir):
-    """
-    Build questions and answers dictionaries over the entire dataset
-    """
+
+    def compute_class(answer):
+        classes = {
+            'number':['0','1','2','3','4','5','6','7','8','9','10'],
+            'material':['rubber','metal'],
+            'color':['cyan','blue','yellow','purple','red','green','gray','brown'],
+            'shape':['sphere','cube','cylinder'],
+            'size':['large','small'],
+            'exist':['yes','no']
+        }
+
+        for name,values in classes.items():
+            if answer in values:
+                return name
+        
+        raise ValueError('Answer {} does not belong to a known class'.format(answer))
+        
+        
     cached_dictionaries = os.path.join(clevr_dir, 'questions', 'CLEVR_built_dictionaries.pkl')
     if os.path.exists(cached_dictionaries):
-        print('==> using cached dictionaries: {}'.format(cached_dictionaries))
         with open(cached_dictionaries, 'rb') as f:
             return pickle.load(f)
-
+            
     quest_to_ix = {}
     answ_to_ix = {}
+    answ_ix_to_class = {}
     json_train_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
-    # load all words from all training data
+    #load all words from all training data
     with open(json_train_filename, "r") as f:
         questions = json.load(f)['questions']
         for q in tqdm(questions):
-            question = tokenize(q['question'])
+            question = utils.tokenize(q['question'])
             answer = q['answer']
-            # pdb.set_trace()
+            #pdb.set_trace()
             for word in question:
                 if word not in quest_to_ix:
-                    quest_to_ix[word] = len(quest_to_ix) + 1  # one based indexing; zero is reserved for padding
-
+                    quest_to_ix[word] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
+            
             a = answer.lower()
             if a not in answ_to_ix:
-                answ_to_ix[a] = len(answ_to_ix) + 1
+                    ix = len(answ_to_ix)+1
+                    answ_to_ix[a] = ix
+                    answ_ix_to_class[ix] = compute_class(a)
 
-    ret = (quest_to_ix, answ_to_ix)
+    ret = (quest_to_ix, answ_to_ix, answ_ix_to_class)    
     with open(cached_dictionaries, 'wb') as f:
         pickle.dump(ret, f)
 

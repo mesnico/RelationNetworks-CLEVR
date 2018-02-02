@@ -21,7 +21,6 @@ import utils
 from clevr_dataset_connector import ClevrDataset
 from model import RN
 
-
 def train(data, model, optimizer, epoch, args):
     model.train()
 
@@ -56,27 +55,78 @@ def train(data, model, optimizer, epoch, args):
             avg_loss = 0.0
 
 
-def test(data, model, epoch, args):
+def test(data, model, epoch, answ_ix_to_class_dict, args):
     model.eval()
 
+    #accuracy for every class
+    class_corrects = {}
+    #for every class, among all the wrong answers, how much are non pertinent
+    class_invalids = {}
+    #total number of samples for every class
+    class_n_samples = {}
+    #initialization
+    for c in answ_ix_to_class_dict.values():
+        class_corrects[c] = 0
+        class_invalids[c] = 0
+        class_n_samples[c] = 0
+
     corrects = 0.0
+    invalids = 0.0
     n_samples = 0
+
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
-
+        
         output = model(img, qst)
-
-        # compute accuracy
         pred = output.data.max(1)[1]
+
+        #compute per-class accuracy
+        pred_class = [answ_ix_to_class_dict[o+1] for o in pred]
+        real_class = [answ_ix_to_class_dict[o+1] for o in label.data]
+        for idx,pc in enumerate(pred_class):
+            class_corrects[pc] += (pred[idx] == label.data[idx])
+            class_n_samples[pc] += 1
+
+        for pc, rc in zip(pred_class,real_class):
+            class_invalids[pc] += (pc != rc)
+
+        confusion_matrix_sample = (pred, label.data)
+        confusion_matrix_class = (pc, rc)
+        
+        # compute global accuracy
         corrects += (pred == label.data).sum()
+        assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
+        invalids = sum(class_invalids.values())
         n_samples += len(label)
-
-        accuracy = corrects / n_samples
-        progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy)))
-
+        assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
+        
+        if batch_idx % args.log_interval == 0:
+            accuracy = corrects / n_samples
+            invalids_perc = invalids / n_samples
+            progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
+            
     accuracy = corrects / n_samples
     print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{})'.format(epoch, accuracy, corrects, n_samples))
+    for v in class_n_samples.keys():
+        accuracy = 0
+        invalid = 0
+        if class_n_samples[v] != 0:
+            accuracy = class_corrects[v] / class_n_samples[v]
+            invalid = class_invalids[v] / class_n_samples[v]
+        print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
+
+    #dump results on file
+    filename = os.path.join(args.test_results_dir, 'test.pickle')
+    dump_object = {
+        'class_corrects':class_corrects,
+        'class_invalids':class_invalids,
+        'class_total_samples':class_n_samples,
+        'confusion_matrix_sample':confusion_matrix_sample,
+        'confusion_matrix_class':confusion_matrix_class,
+        'global_accuracy':accuracy
+    }
+    pickle.dump(dump_object, open(filename,'wb'))
 
 
 def main(args):
@@ -84,6 +134,10 @@ def main(args):
     args.features_dirs = './features'
     if not os.path.exists(args.model_dirs):
         os.makedirs(args.model_dirs)
+
+    args.test_results_dir = './test_results'
+    if not os.path.exists(args.test_results_dir):
+        os.makedirs(args.test_results_dir)
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -129,28 +183,37 @@ def main(args):
 
     start_epoch = 1
     if args.resume:
-        filename = os.path.join(args.model_dirs, args.resume)
+        filename = args.resume
         if os.path.isfile(filename):
             print('==> loading checkpoint {}'.format(filename))
             checkpoint = torch.load(filename)
+
+            #removes 'module' from dict entries, pytorch bug #3805
+            checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
+
             model.load_state_dict(checkpoint)
             print('==> loaded checkpoint {}'.format(filename))
             start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
 
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
-
-    print('Training ({} epochs) is starting...'.format(args.epochs))
     progress_bar = trange(start_epoch, args.epochs + 1)
-    for epoch in progress_bar:
-        # TRAIN
-        progress_bar.set_description('TRAIN')
-        train(clevr_train_loader, model, optimizer, epoch, args)
-        # TEST
-        progress_bar.set_description('TEST')
-        test(clevr_test_loader, model, epoch, args)
-        # SAVE MODEL
-        filename = 'RN_epoch_{:02d}.pth'.format(epoch)
-        torch.save(model.state_dict(), os.path.join(args.model_dirs, filename))
+    if args.test:
+        #perform a single test
+        print('Testing epoch {}'.format(start_epoch))
+        test(clevr_test_loader, model, start_epoch, dictionaries[2], args)
+    else:
+        #perform a full training
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
+        print('Training ({} epochs) is starting...'.format(args.epochs))
+        for epoch in progress_bar:
+            # TRAIN
+            progress_bar.set_description('TRAIN')
+            train(clevr_train_loader, model, optimizer, epoch, args)
+            # TEST
+            progress_bar.set_description('TEST')
+            test(clevr_test_loader, model, epoch, dictionaries[2], args)
+            # SAVE MODEL
+            filename = 'RN_epoch_{:02d}.pth'.format(epoch)
+            torch.save(model.state_dict(), os.path.join(args.model_dirs, filename))
 
 
 if __name__ == '__main__':
@@ -178,6 +241,8 @@ if __name__ == '__main__':
                         help='which model is used to train the network')
     parser.add_argument('--invert-questions', action='store_true', default=False,
                         help='invert the question word indexes for LSTM processing')
+    parser.add_argument('--test', action='store_true', default=False,
+                        help='perform only a single test. To use with --resume')
 
     args = parser.parse_args()
     main(args)

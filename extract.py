@@ -72,7 +72,7 @@ def extract_features_rl(data, max_features_file, avg_features_file, model, args)
         h.remove()
 
         max_features.append((batch_idx, maxf))
-        avg_features.append((batch_idx, maxf))
+        avg_features.append((batch_idx, avgf))
 
     pickle.dump(max_features, max_features_file)
     pickle.dump(avg_features, avg_features_file)
@@ -116,6 +116,10 @@ def main(args):
     # Load the model checkpoint
     print('==> loading checkpoint {}'.format(args.checkpoint))
     checkpoint = torch.load(args.checkpoint)
+
+    #removes 'module' from dict entries, pytorch bug #3805
+    checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
+
     model.load_state_dict(checkpoint)
     print('==> loaded checkpoint {}'.format(args.checkpoint))
 
@@ -128,7 +132,7 @@ def main(args):
 if __name__ == '__main__':
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch Relational-Network CLEVR Feature Extraction')
-    parser.add_argument('checkpoint', type=str,
+    parser.add_argument('--checkpoint', type=str,
                         help='model checkpoint to use for feature extraction')
     parser.add_argument('--model', type=str, choices=['original', 'ir'], default='original',
                         help='which model is used to train the network')
