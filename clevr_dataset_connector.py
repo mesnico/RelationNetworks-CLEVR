@@ -39,7 +39,13 @@ class ClevrDataset(Dataset):
 
         question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'])
         answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'])
-
+        '''if self.dictionaries[2][answer[0]]=='color':
+            image = Image.open(img_filename).convert('L')
+            image = numpy.array(image)
+            image = numpy.stack((image,)*3)
+            image = numpy.transpose(image, (1,2,0))
+            image = Image.fromarray(image.astype('uint8'), 'RGB')'''
+        
         sample = {'image': image, 'question': question, 'answer': answer}
 
         if self.transform:

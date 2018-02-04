@@ -84,12 +84,12 @@ def test(data, model, epoch, answ_ix_to_class_dict, args):
         #compute per-class accuracy
         pred_class = [answ_ix_to_class_dict[o+1] for o in pred]
         real_class = [answ_ix_to_class_dict[o+1] for o in label.data]
-        for idx,pc in enumerate(pred_class):
-            class_corrects[pc] += (pred[idx] == label.data[idx])
-            class_n_samples[pc] += 1
+        for idx,rc in enumerate(real_class):
+            class_corrects[rc] += (pred[idx] == label.data[idx])
+            class_n_samples[rc] += 1
 
         for pc, rc in zip(pred_class,real_class):
-            class_invalids[pc] += (pc != rc)
+            class_invalids[rc] += (pc != rc)
 
         confusion_matrix_sample = (pred, label.data)
         confusion_matrix_class = (pc, rc)

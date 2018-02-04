@@ -28,6 +28,7 @@ def build_dictionaries(clevr_dir):
         
     cached_dictionaries = os.path.join(clevr_dir, 'questions', 'CLEVR_built_dictionaries.pkl')
     if os.path.exists(cached_dictionaries):
+        print('==> using cached dictionaries: {}'.format(cached_dictionaries))
         with open(cached_dictionaries, 'rb') as f:
             return pickle.load(f)
             
@@ -39,7 +40,7 @@ def build_dictionaries(clevr_dir):
     with open(json_train_filename, "r") as f:
         questions = json.load(f)['questions']
         for q in tqdm(questions):
-            question = utils.tokenize(q['question'])
+            question = tokenize(q['question'])
             answer = q['answer']
             #pdb.set_trace()
             for word in question:
