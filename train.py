@@ -25,6 +25,7 @@ def train(data, model, optimizer, epoch, args):
     model.train()
 
     avg_loss = 0.0
+    n_batches = 0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions)
@@ -44,15 +45,17 @@ def train(data, model, optimizer, epoch, args):
         # Show progress
         progress_bar.set_postfix(dict(loss=loss.data[0]))
         avg_loss += loss.data[0]
+        n_batches += 1
 
         if batch_idx % args.log_interval == 0:
-            avg_loss /= args.log_interval
+            avg_loss /= n_batches
             processed = batch_idx * args.batch_size
             n_samples = len(data) * args.batch_size
             progress = float(processed) / n_samples
             print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {}'.format(
                 epoch, processed, n_samples, progress, avg_loss))
             avg_loss = 0.0
+            n_batches = 0
 
 
 def test(data, model, epoch, answ_ix_to_class_dict, args):
