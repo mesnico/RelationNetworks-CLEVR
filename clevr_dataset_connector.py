@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 from PIL import Image
 
 from torch.utils.data import Dataset
@@ -23,8 +24,17 @@ class ClevrDataset(Dataset):
             json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_val_questions.json')
             self.img_dir = os.path.join(clevr_dir, 'images', 'val')
 
-        with open(json_filename, 'r') as json_file:
-            self.questions = json.load(json_file)['questions']
+        cached_questions = json_filename.replace('.json', '.pkl')
+        if os.path.exists(cached_questions):
+            print('==> using cached questions: {}'.format(cached_questions))
+            with open(cached_questions, 'rb') as f:
+                self.questions = pickle.load(f)
+        else:
+            with open(json_filename, 'r') as json_file:
+                self.questions = json.load(json_file)['questions']
+            with open(cached_questions, 'wb') as f:
+                pickle.dump(self.questions, f)
+                
         self.clevr_dir = clevr_dir
         self.transform = transform
         self.dictionaries = dictionaries
@@ -50,7 +60,7 @@ class ClevrDataset(Dataset):
 
         if self.transform:
             sample['image'] = self.transform(sample['image'])
-
+        
         return sample
 
 
