@@ -105,9 +105,11 @@ def test(data, model, epoch, answ_ix_to_class_dict, args):
             accuracy = corrects / n_samples
             invalids_perc = invalids / n_samples
             progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
-            
+    
+    invalids_perc = invalids / n_samples      
     accuracy = corrects / n_samples
-    print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{})'.format(epoch, accuracy, corrects, n_samples))
+
+    print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{}); Invalids = {:.2%} ({:g}/{})'.format(epoch, accuracy, corrects, n_samples, invalids_perc, invalids, n_samples))
     for v in class_n_samples.keys():
         accuracy = 0
         invalid = 0
