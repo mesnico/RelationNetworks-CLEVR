@@ -5,7 +5,7 @@ import re
 
 import torch
 from tqdm import tqdm
-
+import random
 
 def build_dictionaries(clevr_dir):
 
@@ -39,6 +39,7 @@ def build_dictionaries(clevr_dir):
     #load all words from all training data
     with open(json_train_filename, "r") as f:
         questions = json.load(f)['questions']
+        #questions = [s for s in questions if compute_class(s['answer']) == 'exist']
         for q in tqdm(questions):
             question = tokenize(q['question'])
             answer = q['answer']
@@ -127,3 +128,44 @@ def load_tensor_data(data_batch, cuda, invert_questions, volatile=False):
 
     label = (label - 1).squeeze(1)
     return img, qst, label
+
+class ClevrClassSampler(torch.utils.data.sampler.Sampler):
+    def __init__(self, clevr_dir, dictionaries, bs):
+        self.bs = bs
+        self.dictionaries = dictionaries
+        json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
+        with open(json_filename, 'r') as json_file:
+            questions = json.load(json_file)['questions']
+
+        self.indexes_per_class = []
+        self.classes = set(dictionaries[2].values())
+        for c in self.classes:
+            filtered = [idx for idx,s in enumerate(questions) if dictionaries[2][dictionaries[1][s['answer']]] == c]
+            self.indexes_per_class.append(filtered)
+        self.counts = [len(idxs) for idxs in self.indexes_per_class]
+        
+    def __iter__(self):
+        perms = [random.sample(idxs, len(idxs)) for idxs in self.indexes_per_class]
+        counts = list(self.counts)
+        classes_idx = list(range(len(self.classes)))
+        rand_class = random.choice(classes_idx)
+        counts = list(self.counts)
+        batch = []
+        while len(classes_idx) != 0:
+            #pdb.set_trace()
+            idx = perms[rand_class][counts[rand_class]-1]
+            batch.append(idx)
+            counts[rand_class] -= 1
+            if len(batch) == self.bs:
+                yield batch
+                if counts[rand_class] < self.bs:
+                    del classes_idx[classes_idx.index(rand_class)]
+                if len(classes_idx) != 0:
+                    rand_class = random.choice(classes_idx)
+                batch = []
+
+    def __len__(self):
+        total = 0
+        for c in self.counts:
+            total += c // self.bs
+        return total

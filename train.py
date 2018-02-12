@@ -28,7 +28,6 @@ def train(data, model, optimizer, epoch, args):
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions)
-
         # forward and backward pass
         optimizer.zero_grad()
         output = model(img, qst)
@@ -164,9 +163,10 @@ def main(args):
     clevr_dataset_test = ClevrDataset(args.clevr_dir, False, dictionaries, test_transforms)
 
     # Initialize Clevr dataset loaders
-    clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
-                                    shuffle=True, num_workers=8, collate_fn=utils.collate_samples)
-    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
+    clevr_train_loader = DataLoader(clevr_dataset_train,
+                                    batch_sampler=utils.ClevrClassSampler(args.clevr_dir, dictionaries, args.batch_size), 
+                                    num_workers=8, collate_fn=utils.collate_samples)
+    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size / 2,
                                    shuffle=False, num_workers=8, collate_fn=utils.collate_samples)
 
     print('CLEVR dataset initialized!')
