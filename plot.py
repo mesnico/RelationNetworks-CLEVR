@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 
 def parse_log(log, pattern):
-    with open(log, 'rb') as log_file:
+    with open(log, 'r') as log_file:
         for line in log_file:
             match = re.search(pattern, line)
             if match:
@@ -27,7 +27,7 @@ def plot_accuracy(log):
     accs = {k: [float(i) for i in parse_log(log, '{} -- acc: (\d+\.\d+)%'.format(k))]
             for k in details}
     
-    for k, v in accs.iteritems():
+    for k, v in accs.items():
         plt.plot(v, label=k)
     
     plt.plot(accuracy, linewidth=2, label='total')
@@ -37,16 +37,36 @@ def plot_accuracy(log):
     plt.ylabel('%')
     plt.show()
 
+def plot_invalids(log):
+    invalids = [float(i) for i in parse_log(log, r'.* Invalids = (\d+\.\d+)%')]
+    '''details = ['exist', 'number', 'material', 'size', 'shape', 'color']
+    
+    invds = {k: [float(i) for i in parse_log(log, '.* invalid: (\d+\.\d+)%'.format(k))]
+            for k in details}
+    
+    for k, v in invds.items():
+        plt.plot(v, label=k)'''
+    
+    plt.plot(invalids, linewidth=2, label='total')
+    plt.legend(loc='best')
+    plt.title('Invalid rate')
+    plt.xlabel('Epoch')
+    plt.ylabel('%')
+    plt.show()
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser(description='Plot RN training logs')
-  parser.add_argument('log_file', type=str, help='Log file to plot')
-  parser.add_argument('-l', '--loss', action='store_true', help='Show training loss plot')
-  parser.add_argument('-a', '--accuracy', action='store_true', help='Show accuracy plot')
-  args = parser.parse_args()
-  
-  if args.loss:
+    parser = argparse.ArgumentParser(description='Plot RN training logs')
+    parser.add_argument('log_file', type=str, help='Log file to plot')
+    parser.add_argument('-l', '--loss', action='store_true', help='Show training loss plot')
+    parser.add_argument('-a', '--accuracy', action='store_true', help='Show accuracy plot')
+    parser.add_argument('-i', '--invalids', action='store_true', help='Show invalid rate plot')
+    args = parser.parse_args()
+
+    if args.loss:
       plot_loss(args.log_file)
-  
-  if args.accuracy:
+
+    if args.accuracy:
       plot_accuracy(args.log_file)
+
+    if args.invalids:
+      plot_invalids(args.log_file)

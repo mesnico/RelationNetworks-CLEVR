@@ -94,7 +94,7 @@ class RelationalLayerIR(RelationalLayerBase):
         self.f_fc2 = nn.Linear(256, 256)
         self.f_fc3 = nn.Linear(256, out_size)
 
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.2)
     
     def forward(self, x, qst):
         # x = (B x 24 x 8 x 8)

@@ -8,6 +8,7 @@ import json
 import os
 import pickle
 import re
+import numpy as np
 
 import torch
 import torch.nn.functional as F
@@ -58,7 +59,7 @@ def train(data, model, optimizer, epoch, args):
             n_batches = 0
 
 
-def test(data, model, epoch, answ_ix_to_class_dict, args):
+def test(data, model, epoch, dictionaries, args):
     model.eval()
 
     #accuracy for every class
@@ -68,7 +69,7 @@ def test(data, model, epoch, answ_ix_to_class_dict, args):
     #total number of samples for every class
     class_n_samples = {}
     #initialization
-    for c in answ_ix_to_class_dict.values():
+    for c in dictionaries[2].values():
         class_corrects[c] = 0
         class_invalids[c] = 0
         class_n_samples[c] = 0
@@ -76,6 +77,16 @@ def test(data, model, epoch, answ_ix_to_class_dict, args):
     corrects = 0.0
     invalids = 0.0
     n_samples = 0
+
+    sorted_classes = sorted(dictionaries[2].items(), key=lambda x: x[1])
+    sorted_classes = [c[0]-1 for c in sorted_classes]
+
+    confusion_matrix_target = []
+    confusion_matrix_pred = []
+
+    sorted_labels = sorted(dictionaries[1].items(), key=lambda x: x[1])
+    sorted_labels = [c[0] for c in sorted_labels]
+    sorted_labels = [sorted_labels[c] for c in sorted_classes]
 
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
@@ -85,8 +96,8 @@ def test(data, model, epoch, answ_ix_to_class_dict, args):
         pred = output.data.max(1)[1]
 
         #compute per-class accuracy
-        pred_class = [answ_ix_to_class_dict[o+1] for o in pred]
-        real_class = [answ_ix_to_class_dict[o+1] for o in label.data]
+        pred_class = [dictionaries[2][o+1] for o in pred]
+        real_class = [dictionaries[2][o+1] for o in label.data]
         for idx,rc in enumerate(real_class):
             class_corrects[rc] += (pred[idx] == label.data[idx])
             class_n_samples[rc] += 1
@@ -94,8 +105,9 @@ def test(data, model, epoch, answ_ix_to_class_dict, args):
         for pc, rc in zip(pred_class,real_class):
             class_invalids[rc] += (pc != rc)
 
-        confusion_matrix_sample = (pred, label.data)
-        confusion_matrix_class = (pc, rc)
+        for p,l in zip(pred, label.data):
+            confusion_matrix_target.append(sorted_classes.index(l))
+            confusion_matrix_pred.append(sorted_classes.index(p))
         
         # compute global accuracy
         corrects += (pred == label.data).sum()
@@ -127,8 +139,9 @@ def test(data, model, epoch, answ_ix_to_class_dict, args):
         'class_corrects':class_corrects,
         'class_invalids':class_invalids,
         'class_total_samples':class_n_samples,
-        'confusion_matrix_sample':confusion_matrix_sample,
-        'confusion_matrix_class':confusion_matrix_class,
+        'confusion_matrix_target':confusion_matrix_target,
+        'confusion_matrix_pred':confusion_matrix_pred,
+        'confusion_matrix_labels':sorted_labels,
         'global_accuracy':accuracy
     }
     pickle.dump(dump_object, open(filename,'wb'))
@@ -204,7 +217,7 @@ def main(args):
     if args.test:
         #perform a single test
         print('Testing epoch {}'.format(start_epoch))
-        test(clevr_test_loader, model, start_epoch, dictionaries[2], args)
+        test(clevr_test_loader, model, start_epoch, dictionaries, args)
     else:
         #perform a full training
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
@@ -215,7 +228,7 @@ def main(args):
             train(clevr_train_loader, model, optimizer, epoch, args)
             # TEST
             progress_bar.set_description('TEST')
-            test(clevr_test_loader, model, epoch, dictionaries[2], args)
+            test(clevr_test_loader, model, epoch, dictionaries, args)
             # SAVE MODEL
             filename = 'RN_epoch_{:02d}.pth'.format(epoch)
             torch.save(model.state_dict(), os.path.join(args.model_dirs, filename))
