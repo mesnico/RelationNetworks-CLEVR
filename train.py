@@ -179,9 +179,13 @@ def main(args):
     clevr_dataset_train = ClevrDataset(args.clevr_dir, True, dictionaries, train_transforms)
     clevr_dataset_test = ClevrDataset(args.clevr_dir, False, dictionaries, test_transforms)
 
+    # Use a weighted sampler for training:
+    weights = clevr_dataset_train.answer_weights()
+    sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
+    
     # Initialize Clevr dataset loaders
     clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
-                                    shuffle=True, num_workers=8, collate_fn=utils.collate_samples)
+                                    sampler=sampler, num_workers=8, collate_fn=utils.collate_samples)
     clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
                                    shuffle=False, num_workers=8, collate_fn=utils.collate_samples)
 

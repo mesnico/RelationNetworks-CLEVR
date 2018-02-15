@@ -3,6 +3,7 @@ import os
 import pickle
 from PIL import Image
 
+from collections import Counter
 from torch.utils.data import Dataset
 
 import utils
@@ -38,7 +39,13 @@ class ClevrDataset(Dataset):
         self.clevr_dir = clevr_dir
         self.transform = transform
         self.dictionaries = dictionaries
-
+    
+    def answer_weights(self):
+        n = float(len(self.questions))
+        answer_count = Counter(q['answer'].lower() for q in self.questions)
+        weights = [n/answer_count[q['answer'].lower()] for q in self.questions]
+        return weights
+    
     def __len__(self):
         return len(self.questions)
 
