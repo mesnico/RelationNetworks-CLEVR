@@ -43,7 +43,7 @@ def plot_confusion_matrix(cm, classes,
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Plot RN confusion matrix')
-  parser.add_argument('--file', type=str, help='Stat file to use for plotting')
+  parser.add_argument('file', type=str, help='Stat file to use for plotting')
   args = parser.parse_args()
 
   # Load stats file

@@ -78,7 +78,8 @@ def test(data, model, epoch, dictionaries, args):
     invalids = 0.0
     n_samples = 0
 
-    sorted_classes = sorted(dictionaries[2].items(), key=lambda x: x[1])
+    inverted_answ_dict = {v: k for k,v in dictionaries[1].items()}
+    sorted_classes = sorted(dictionaries[2].items(), key=lambda x: hash(x[1]) if x[1]!='number' else int(inverted_answ_dict[x[0]]))
     sorted_classes = [c[0]-1 for c in sorted_classes]
 
     confusion_matrix_target = []
