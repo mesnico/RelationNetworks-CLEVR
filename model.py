@@ -41,6 +41,7 @@ class QuestionEmbedModel(nn.Module):
         
         self.wembedding = nn.Embedding(in_size + 1, embed)  #word embeddings have size 32
         self.lstm = nn.LSTM(embed, hidden, batch_first=True)  # Input dim is 32, output dim is the question embedding
+        self.hidden = hidden
         
     def forward(self, question):
         #calculate question embeddings
@@ -49,7 +50,9 @@ class QuestionEmbedModel(nn.Module):
         self.lstm.flatten_parameters()
         _, hidden = self.lstm(wembed) # initial state is set to zeros by default
         qst_emb = hidden[0] # hidden state of the lstm. qst = (B x 128)
-        qst_emb = qst_emb[-1] # take the last LSTM layer (as of now, there is only one LSTM layer)
+        #qst_emb = qst_emb.permute(1,0,2).contiguous()
+        #qst_emb = qst_emb.view(-1, self.hidden*2)
+        qst_emb = qst_emb[0]
         
         return qst_emb
 

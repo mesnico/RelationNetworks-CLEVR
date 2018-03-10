@@ -211,12 +211,48 @@ def main(args):
             print('==> loading checkpoint {}'.format(filename))
             checkpoint = torch.load(filename)
 
-            #removes 'module' from dict entries, pytorch bug #3805
+            #removes 'module' from dict entries, pytorch issue #3805
             checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
             model.load_state_dict(checkpoint)
             print('==> loaded checkpoint {}'.format(filename))
             start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
+
+    
+    if args.conv_transfer_learn:
+        if os.path.isfile(args.conv_transfer_learn):
+            #TODO: there may be problems caused by pytorch issue #3805 if using DataParallel
+
+            print('==> loading conv layer from {}'.format(args.conv_transfer_learn))
+            #pretrained dict is the dictionary containing the already trained conv layer
+            pretrained_dict = torch.load(args.conv_transfer_learn)
+
+            if torch.cuda.device_count() == 1:
+                conv_dict = model.conv.state_dict()
+            else:
+                conv_dict = model.module.conv.state_dict()
+            
+            #filter only the conv layer from the loaded dictionary
+            conv_pretrained_dict = {k.replace('conv.','',1): v for k, v in pretrained_dict.items() if 'conv.' in k}
+
+            # overwrite entries in the existing state dict
+            conv_dict.update(conv_pretrained_dict)
+
+            # load the new state dict
+            if torch.cuda.device_count() == 1:
+                model.conv.load_state_dict(conv_dict)
+                params = model.conv.parameters()
+            else:
+                model.module.conv.load_state_dict(conv_dict)
+                params = model.module.conv.parameters()
+
+            #freeze the weights for the convolutional layer by disabling gradient evaluation
+            for param in params:
+                param.requires_grad = False
+
+            print("==> conv layer loaded!")
+        else:
+            print('Cannot load file {}'.format(args.conv_transfer_learn))
 
     progress_bar = trange(start_epoch, args.epochs + 1)
     if args.test:
@@ -225,7 +261,7 @@ def main(args):
         test(clevr_test_loader, model, start_epoch, dictionaries, args)
     else:
         #perform a full training
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-4)
         print('Training ({} epochs) is starting...'.format(args.epochs))
         for epoch in progress_bar:
             # TRAIN
@@ -266,6 +302,8 @@ if __name__ == '__main__':
                         help='invert the question word indexes for LSTM processing')
     parser.add_argument('--test', action='store_true', default=False,
                         help='perform only a single test. To use with --resume')
+    parser.add_argument('--conv-transfer-learn', type=str,
+                    help='use convolutional layer from another training')
 
     args = parser.parse_args()
     main(args)
