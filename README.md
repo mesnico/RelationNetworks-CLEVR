@@ -1,4 +1,4 @@
-# Relational Networks CLEVR
+# Relation Networks CLEVR
 A pytorch implementation for _A simple neural network module for relational reasoning_ [https://arxiv.org/abs/1706.01427](https://arxiv.org/abs/1706.01427), working on the CLEVR dataset.
 
 This code tries to reproduce results obtained by DeepMind team. Since the paper does not expose all the network details, there could be variations to respect the original results.
@@ -52,4 +52,4 @@ Where ```--layer g_fc4:o``` extracts features from the output of the g_fc4 layer
 ## Implementation details
 * Questions and answers dictionaries are built from data in training set, so the model will not work with words never seen before.
 * All the words in the dataset are treated in a case-insensitive manner, since we don't want the model to learn case biases.
-* For network settings, see sections 6B and 6C from the original paper https://arxiv.org/abs/1706.01427.
+* For network settings, see sections 4 and B from the original paper https://arxiv.org/abs/1706.01427.
