@@ -62,13 +62,13 @@ def train(data, model, optimizer, epoch, args):
 def test(data, model, epoch, dictionaries, args):
     model.eval()
 
-    #accuracy for every class
+    # accuracy for every class
     class_corrects = {}
-    #for every class, among all the wrong answers, how much are non pertinent
+    # for every class, among all the wrong answers, how much are non pertinent
     class_invalids = {}
-    #total number of samples for every class
+    # total number of samples for every class
     class_n_samples = {}
-    #initialization
+    # initialization
     for c in dictionaries[2].values():
         class_corrects[c] = 0
         class_invalids[c] = 0
@@ -96,7 +96,7 @@ def test(data, model, epoch, dictionaries, args):
         output = model(img, qst)
         pred = output.data.max(1)[1]
 
-        #compute per-class accuracy
+        # compute per-class accuracy
         pred_class = [dictionaries[2][o+1] for o in pred]
         real_class = [dictionaries[2][o+1] for o in label.data]
         for idx,rc in enumerate(real_class):
@@ -134,7 +134,7 @@ def test(data, model, epoch, dictionaries, args):
             invalid = class_invalids[v] / class_n_samples[v]
         print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
 
-    #dump results on file
+    # dump results on file
     filename = os.path.join(args.test_results_dir, 'test.pickle')
     dump_object = {
         'class_corrects':class_corrects,
@@ -211,8 +211,8 @@ def main(args):
             print('==> loading checkpoint {}'.format(filename))
             checkpoint = torch.load(filename)
 
-            #removes 'module' from dict entries, pytorch issue #3805
-            checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
+            #removes 'module' from dict entries, pytorch bug #3805
+            #checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
             model.load_state_dict(checkpoint)
             print('==> loaded checkpoint {}'.format(filename))
@@ -221,10 +221,10 @@ def main(args):
     
     if args.conv_transfer_learn:
         if os.path.isfile(args.conv_transfer_learn):
-            #TODO: there may be problems caused by pytorch issue #3805 if using DataParallel
+            # TODO: there may be problems caused by pytorch issue #3805 if using DataParallel
 
             print('==> loading conv layer from {}'.format(args.conv_transfer_learn))
-            #pretrained dict is the dictionary containing the already trained conv layer
+            # pretrained dict is the dictionary containing the already trained conv layer
             pretrained_dict = torch.load(args.conv_transfer_learn)
 
             if torch.cuda.device_count() == 1:
@@ -232,7 +232,7 @@ def main(args):
             else:
                 conv_dict = model.module.conv.state_dict()
             
-            #filter only the conv layer from the loaded dictionary
+            # filter only the conv layer from the loaded dictionary
             conv_pretrained_dict = {k.replace('conv.','',1): v for k, v in pretrained_dict.items() if 'conv.' in k}
 
             # overwrite entries in the existing state dict
@@ -246,9 +246,9 @@ def main(args):
                 model.module.conv.load_state_dict(conv_dict)
                 params = model.module.conv.parameters()
 
-            #freeze the weights for the convolutional layer by disabling gradient evaluation
-            for param in params:
-                param.requires_grad = False
+            # freeze the weights for the convolutional layer by disabling gradient evaluation
+            # for param in params:
+            #     param.requires_grad = False
 
             print("==> conv layer loaded!")
         else:
@@ -256,11 +256,11 @@ def main(args):
 
     progress_bar = trange(start_epoch, args.epochs + 1)
     if args.test:
-        #perform a single test
+        # perform a single test
         print('Testing epoch {}'.format(start_epoch))
         test(clevr_test_loader, model, start_epoch, dictionaries, args)
     else:
-        #perform a full training
+        # perform a full training
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-4)
         print('Training ({} epochs) is starting...'.format(args.epochs))
         for epoch in progress_bar:
