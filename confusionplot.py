@@ -1,17 +1,16 @@
 import itertools
 import numpy as np
-import matplotlib.pyplot as plt
 import pickle
 import argparse
-import pdb
+import matplotlib
+import os
 
 from sklearn.metrics import confusion_matrix
 
 
-def plot_confusion_matrix(cm, classes,
+def plot_confusion_matrix(cm, classes, cmap,
                           normalize=False,
-                          title='Confusion matrix',
-                          cmap=plt.cm.Blues):
+                          title='Confusion matrix'):
     """
     This function prints and plots the confusion matrix.
     Normalization can be applied by setting `normalize=True`.
@@ -44,7 +43,18 @@ def plot_confusion_matrix(cm, classes,
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Plot RN confusion matrix')
   parser.add_argument('file', type=str, help='Stat file to use for plotting')
+  parser.add_argument('--no-show', action='store_true', help='Do not show plot, store only on file')
   args = parser.parse_args()
+
+  img_dir = 'imgs/'
+  args.img_dir = img_dir
+
+  if not os.path.exists(img_dir):
+    os.makedirs(img_dir)
+
+  if args.no_show:
+      matplotlib.use('Agg')    
+  import matplotlib.pyplot as plt
 
   # Load stats file
   filename = open(args.file, 'rb')
@@ -58,7 +68,9 @@ if __name__ == '__main__':
   np.set_printoptions(precision=2)
 
   # Plot normalized confusion matrix
-  plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
+  plot_confusion_matrix(cnf_matrix, classes=class_names, cmap=plt.cm.Blues, normalize=True,
                         title='Normalized confusion matrix')
 
-  plt.show()
+  plt.savefig(os.path.join(args.img_dir, 'confusion.png'))
+  if not args.no_show:
+    plt.show()

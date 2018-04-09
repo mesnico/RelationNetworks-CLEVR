@@ -1,10 +1,7 @@
 import re
 import argparse
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import os
-
+import matplotlib
 
 def parse_log(log, pattern):
     with open(log, 'r') as log_file:
@@ -19,11 +16,6 @@ def parse_log(log, pattern):
 
 def plot_loss(args):
     losses = [float(i) for i in parse_log(args.log_file, r'Train loss: (.*)')]
-    subs = 10
-    until = 135000
-    tmp = losses[:until] 
-    losses[:until] = []
-    losses[:until//subs] = tmp[::subs]
     plt.plot(losses)
     plt.savefig(os.path.join(args.img_dir, 'loss.png'))
     if not args.no_show:
@@ -79,7 +71,11 @@ if __name__ == '__main__':
     
     img_dir = 'imgs/'
     args.img_dir = img_dir
-    
+
+    if args.no_show:
+        matplotlib.use('Agg')    
+    import matplotlib.pyplot as plt
+
     if not os.path.exists(img_dir):
         os.makedirs(img_dir)
 

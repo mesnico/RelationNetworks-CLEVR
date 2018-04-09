@@ -27,7 +27,7 @@ hyperparams = {
             "dropout": 0.02,
             "lstm_hidden": 256,
             "lstm_word_emb": 32,
-            "rl_in_size": 8*2
+            "rl_in_size": 7*2
         },
     "ir-fp": #IR model from pixels
         {
