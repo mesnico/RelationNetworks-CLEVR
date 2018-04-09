@@ -6,11 +6,7 @@ import re
 import torch
 from tqdm import tqdm
 
-
-def build_dictionaries(clevr_dir):
-
-    def compute_class(answer):
-        classes = {
+classes = {
             'number':['0','1','2','3','4','5','6','7','8','9','10'],
             'material':['rubber','metal'],
             'color':['cyan','blue','yellow','purple','red','green','gray','brown'],
@@ -19,6 +15,9 @@ def build_dictionaries(clevr_dir):
             'exist':['yes','no']
         }
 
+def build_dictionaries(clevr_dir):
+
+    def compute_class(answer):
         for name,values in classes.items():
             if answer in values:
                 return name
@@ -69,8 +68,13 @@ def to_dictionary_indexes(dictionary, sentence):
     idxs = torch.LongTensor([dictionary[w] for w in split])
     return idxs
 
-
-def collate_samples(batch):
+def collate_samples_image(batch):
+    return collate_samples(batch, False)
+    
+def collate_samples_state_description(batch):
+    return collate_samples(batch, True)
+    
+def collate_samples(batch, state_description):
     """
     Used by DatasetLoader to merge together multiple samples into one mini-batch.
     """
@@ -86,7 +90,15 @@ def collate_samples(batch):
     padded_questions = torch.LongTensor(batch_size, max_len).zero_()
     for i, q in enumerate(questions):
         padded_questions[i, :len(q)] = q
-
+        
+    if(state_description):
+        max_len = 10
+        #even object matrices should be padded (they are variable length)
+        padded_objects = torch.FloatTensor(batch_size, max_len, images[0].size()[1]).zero_()
+        for i, o in enumerate(images):
+            padded_objects[i, :o.size()[0], :] = o
+        images = padded_objects
+        
     collated_batch = dict(
         image=torch.stack(images),
         answer=torch.stack(answers),

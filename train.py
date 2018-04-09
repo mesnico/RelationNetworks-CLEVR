@@ -19,8 +19,10 @@ from torchvision import transforms
 from tqdm import tqdm, trange
 
 import utils
-from clevr_dataset_connector import ClevrDataset
+from clevr_dataset_connector import ClevrDataset, ClevrDatasetStateDescription
 from model import RN
+
+import pdb
 
 def train(data, model, optimizer, epoch, args):
     model.train()
@@ -169,26 +171,37 @@ def main(args):
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
-    train_transforms = transforms.Compose([transforms.Resize((128, 128)),
+    
+    if(not args.state_description):
+        train_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                            transforms.Pad(8),
                                            transforms.RandomCrop((128, 128)),
                                            transforms.RandomRotation(2.8),  # .05 rad
                                            transforms.ToTensor()])
-    test_transforms = transforms.Compose([transforms.Resize((128, 128)),
+        test_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                           transforms.ToTensor()])
+                                          
+        clevr_dataset_train = ClevrDataset(args.clevr_dir, True, dictionaries, train_transforms)
+        clevr_dataset_test = ClevrDataset(args.clevr_dir, False, dictionaries, test_transforms)
 
-    clevr_dataset_train = ClevrDataset(args.clevr_dir, True, dictionaries, train_transforms)
-    clevr_dataset_test = ClevrDataset(args.clevr_dir, False, dictionaries, test_transforms)
-
-    # Use a weighted sampler for training:
-    weights = clevr_dataset_train.answer_weights()
-    sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
-    
-    # Initialize Clevr dataset loaders
-    clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
-                                    sampler=sampler, num_workers=8, collate_fn=utils.collate_samples)
-    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
-                                   shuffle=False, num_workers=8, collate_fn=utils.collate_samples)
+        # Use a weighted sampler for training:
+        weights = clevr_dataset_train.answer_weights()
+        sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
+        
+        # Initialize Clevr dataset loaders
+        clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
+                                        sampler=sampler, num_workers=8, collate_fn=utils.collate_samples_image)
+        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
+                                       shuffle=False, num_workers=8, collate_fn=utils.collate_samples_image)
+    else:
+        clevr_dataset_train = ClevrDatasetStateDescription(args.clevr_dir, True, dictionaries)
+        clevr_dataset_test = ClevrDatasetStateDescription(args.clevr_dir, False, dictionaries)
+        
+        # Initialize Clevr dataset loaders
+        clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
+                                        shuffle=True, num_workers=8, collate_fn=utils.collate_samples_state_description)
+        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
+                                       shuffle=False, num_workers=8, collate_fn=utils.collate_samples_state_description)
 
     print('CLEVR dataset initialized!')
 
@@ -304,6 +317,8 @@ if __name__ == '__main__':
                         help='perform only a single test. To use with --resume')
     parser.add_argument('--conv-transfer-learn', type=str,
                     help='use convolutional layer from another training')
+    parser.add_argument('--state-description', action='store_true', default=False,
+                        help='disables CUDA training')
 
     args = parser.parse_args()
     main(args)

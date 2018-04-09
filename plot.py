@@ -1,6 +1,9 @@
 import re
 import argparse
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import os
 
 
 def parse_log(log, pattern):
@@ -14,17 +17,24 @@ def parse_log(log, pattern):
                 yield match.group(1)
 
 
-def plot_loss(log):
-    losses = [float(i) for i in parse_log(log, r'Train loss: (.*)')]
+def plot_loss(args):
+    losses = [float(i) for i in parse_log(args.log_file, r'Train loss: (.*)')]
+    subs = 10
+    until = 135000
+    tmp = losses[:until] 
+    losses[:until] = []
+    losses[:until//subs] = tmp[::subs]
     plt.plot(losses)
-    plt.show()
+    plt.savefig(os.path.join(args.img_dir, 'loss.png'))
+    if not args.no_show:
+        plt.show()
 
 
-def plot_accuracy(log):
-    accuracy = [float(i) for i in parse_log(log, r'.* Accuracy = (\d+\.\d+)%')]
+def plot_accuracy(args):
+    accuracy = [float(i) for i in parse_log(args.log_file, r'.* Accuracy = (\d+\.\d+)%')]
     details = ['exist', 'number', 'material', 'size', 'shape', 'color']
     
-    accs = {k: [float(i) for i in parse_log(log, '{} -- acc: (\d+\.\d+)%'.format(k))]
+    accs = {k: [float(i) for i in parse_log(args.log_file, '{} -- acc: (\d+\.\d+)%'.format(k))]
             for k in details}
     
     for k, v in accs.items():
@@ -35,10 +45,12 @@ def plot_accuracy(log):
     plt.title('Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('%')
-    plt.show()
+    plt.savefig(os.path.join(args.img_dir, 'accuracy.png'))
+    if not args.no_show:
+        plt.show()
 
-def plot_invalids(log):
-    invalids = [float(i) for i in parse_log(log, r'.* Invalids = (\d+\.\d+)%')]
+def plot_invalids(args):
+    invalids = [float(i) for i in parse_log(args.log_file, r'.* Invalids = (\d+\.\d+)%')]
     '''details = ['exist', 'number', 'material', 'size', 'shape', 'color']
     
     invds = {k: [float(i) for i in parse_log(log, '.* invalid: (\d+\.\d+)%'.format(k))]
@@ -52,7 +64,9 @@ def plot_invalids(log):
     plt.title('Invalid rate')
     plt.xlabel('Epoch')
     plt.ylabel('%')
-    plt.show()
+    plt.savefig(os.path.join(args.img_dir, 'invalids.png'))
+    if not args.no_show:
+        plt.show()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Plot RN training logs')
@@ -60,13 +74,20 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--loss', action='store_true', help='Show training loss plot')
     parser.add_argument('-a', '--accuracy', action='store_true', help='Show accuracy plot')
     parser.add_argument('-i', '--invalids', action='store_true', help='Show invalid rate plot')
+    parser.add_argument('--no-show', action='store_true', help='Do not show figures, store only on file')
     args = parser.parse_args()
+    
+    img_dir = 'imgs/'
+    args.img_dir = img_dir
+    
+    if not os.path.exists(img_dir):
+        os.makedirs(img_dir)
 
     if args.loss:
-      plot_loss(args.log_file)
+      plot_loss(args)
 
     if args.accuracy:
-      plot_accuracy(args.log_file)
+      plot_accuracy(args)
 
     if args.invalids:
-      plot_invalids(args.log_file)
+      plot_invalids(args)
