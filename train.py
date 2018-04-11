@@ -133,7 +133,7 @@ def test(data, model, epoch, dictionaries, args):
     invalids_perc = invalids / n_samples      
     accuracy = corrects / n_samples
 
-    print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{}); Invalids = {:.2%} ({:g}/{}); Test loss = {:.2}'.format(epoch, accuracy, corrects, n_samples, invalids_perc, invalids, n_samples, avg_loss))
+    print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{}); Invalids = {:.2%} ({:g}/{}); Test loss = {}'.format(epoch, accuracy, corrects, n_samples, invalids_perc, invalids, n_samples, avg_loss))
     for v in class_n_samples.keys():
         accuracy = 0
         invalid = 0
