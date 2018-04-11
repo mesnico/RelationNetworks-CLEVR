@@ -91,12 +91,15 @@ def test(data, model, epoch, dictionaries, args):
     sorted_labels = [c[0] for c in sorted_labels]
     sorted_labels = [sorted_labels[c] for c in sorted_classes]
 
+    avg_loss = 0.0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
         
         output = model(img, qst)
         pred = output.data.max(1)[1]
+
+        loss = F.nll_loss(output, label)
 
         # compute per-class accuracy
         pred_class = [dictionaries[2][o+1] for o in pred]
@@ -119,15 +122,18 @@ def test(data, model, epoch, dictionaries, args):
         n_samples += len(label)
         assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
         
+        avg_loss += loss.data[0]
+
         if batch_idx % args.log_interval == 0:
             accuracy = corrects / n_samples
             invalids_perc = invalids / n_samples
             progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
     
+    avg_loss /= len(data)
     invalids_perc = invalids / n_samples      
     accuracy = corrects / n_samples
 
-    print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{}); Invalids = {:.2%} ({:g}/{})'.format(epoch, accuracy, corrects, n_samples, invalids_perc, invalids, n_samples))
+    print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{}); Invalids = {:.2%} ({:g}/{}); Test loss = {:.2}'.format(epoch, accuracy, corrects, n_samples, invalids_perc, invalids, n_samples, avg_loss))
     for v in class_n_samples.keys():
         accuracy = 0
         invalid = 0
