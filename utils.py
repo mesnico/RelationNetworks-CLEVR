@@ -5,6 +5,7 @@ import re
 
 import torch
 from tqdm import tqdm
+import config
 
 classes = {
             'number':['0','1','2','3','4','5','6','7','8','9','10'],
@@ -92,7 +93,7 @@ def collate_samples(batch, state_description):
         padded_questions[i, :len(q)] = q
         
     if(state_description):
-        max_len = 10
+        max_len = config.objs_padding
         #even object matrices should be padded (they are variable length)
         padded_objects = torch.FloatTensor(batch_size, max_len, images[0].size()[1]).zero_()
         for i, o in enumerate(images):

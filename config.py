@@ -1,3 +1,5 @@
+objs_padding = 12
+
 hyperparams = {
     "original-fp": #original model from pixels
         {
@@ -24,7 +26,7 @@ hyperparams = {
             "f_fc1": 512,
             "f_fc2": 1024,
             
-            "dropout": 0.02,
+            "dropout": 0.05,
             "lstm_hidden": 256,
             "lstm_word_emb": 32,
             "rl_in_size": 7*2
@@ -58,7 +60,7 @@ hyperparams = {
             
             "h_fc1": 512,
             
-            "dropout": 0.02,
+            "dropout": 0.10,
             "lstm_hidden": 256,
             "lstm_word_emb": 32,
             "rl_in_size": 7*2
