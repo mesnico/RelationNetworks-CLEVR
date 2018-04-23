@@ -3,7 +3,7 @@ import argparse
 import os
 import matplotlib
 
-def parse_log(log, pattern):
+'''def parse_log(log, pattern):
     with open(log, 'r') as log_file:
         for line in log_file:
             match = re.search(pattern, line)
@@ -11,24 +11,36 @@ def parse_log(log, pattern):
                 # yield the first group of the pattern;
                 # i.e. the one delimited in parenthesis
                 # inside the pattern (...)
-                yield match.group(1)
+                yield match.group(1)'''
+
+def parse_log(log, pattern):
+    with open(log, 'r') as log_file:
+        for i, line in enumerate(log_file):
+            match = re.search(pattern, line)
+            if match and '(0%)' not in line:
+                # yield the first group of the pattern;
+                # i.e. the one delimited in parenthesis
+                # inside the pattern (...)
+                yield i, match.group(1)
 
 def plot_train_loss(args):
-    losses = [float(i) for i in parse_log(args.log_file, r'Train loss: (.*)')]
+    losses = [(10*n,float(i)) for n,i in parse_log(args.log_file, r'Train loss: (.*)')]
     plt.clf()
-    plt.plot(losses)
+    it, losses = zip(*losses)
+    plt.plot(it, losses)
     plt.title('Train Loss')
     plt.xlabel('Iteration')
     if args.y_max != 0:
         plt.ylim(ymax=args.y_max)
     if args.y_min != 0:
         plt.ylim(ymin=args.y_min)
+    plt.grid()
     plt.savefig(os.path.join(args.img_dir, 'train_loss.png'))
     if not args.no_show:
         plt.show()
 
 def plot_test_loss(args):
-    losses = [float(i) for i in parse_log(args.log_file, r'Test loss = (.*)')]
+    losses = [float(i) for _,i in parse_log(args.log_file, r'Test loss = (.*)')]
     plt.clf()
     plt.plot(losses)
     plt.title('Test Loss')
@@ -37,16 +49,17 @@ def plot_test_loss(args):
     if args.y_min != 0:
         plt.ylim(ymin=args.y_min)
     plt.xlabel('Epoch')
+    plt.grid()
     plt.savefig(os.path.join(args.img_dir, 'test_loss.png'))
     if not args.no_show:
         plt.show()
 
 
 def plot_accuracy(args):
-    accuracy = [float(i) for i in parse_log(args.log_file, r'.* Accuracy = (\d+\.\d+)%')]
+    accuracy = [float(i) for _,i in parse_log(args.log_file, r'.* Accuracy = (\d+\.\d+)%')]
     details = ['exist', 'number', 'material', 'size', 'shape', 'color']
     
-    accs = {k: [float(i) for i in parse_log(args.log_file, '{} -- acc: (\d+\.\d+)%'.format(k))]
+    accs = {k: [float(i) for _,i in parse_log(args.log_file, '{} -- acc: (\d+\.\d+)%'.format(k))]
             for k in details}
     
     plt.clf()
@@ -58,12 +71,13 @@ def plot_accuracy(args):
     plt.title('Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('%')
+    plt.grid()
     plt.savefig(os.path.join(args.img_dir, 'accuracy.png'))
     if not args.no_show:
         plt.show()
 
 def plot_invalids(args):
-    invalids = [float(i) for i in parse_log(args.log_file, r'.* Invalids = (\d+\.\d+)%')]
+    invalids = [float(i) for _,i in parse_log(args.log_file, r'.* Invalids = (\d+\.\d+)%')]
     '''details = ['exist', 'number', 'material', 'size', 'shape', 'color']
     
     invds = {k: [float(i) for i in parse_log(log, '.* invalid: (\d+\.\d+)%'.format(k))]
@@ -78,6 +92,7 @@ def plot_invalids(args):
     plt.title('Invalid rate')
     plt.xlabel('Epoch')
     plt.ylabel('%')
+    plt.grid()
     plt.savefig(os.path.join(args.img_dir, 'invalids.png'))
     if not args.no_show:
         plt.show()

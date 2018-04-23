@@ -60,7 +60,7 @@ hyperparams = {
             
             "h_fc1": 512,
             
-            "dropout": 0.10,
+            "dropout": 0.05,
             "lstm_hidden": 256,
             "lstm_word_emb": 32,
             "rl_in_size": 7*2

@@ -13,12 +13,15 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.optim import lr_scheduler
 from torch.nn.utils import clip_grad_norm
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm, trange
 
 import utils
+import math
+import config
 from clevr_dataset_connector import ClevrDataset, ClevrDatasetStateDescription
 from model import RN
 
@@ -154,14 +157,76 @@ def test(data, model, epoch, dictionaries, args):
         'global_accuracy':accuracy
     }
     pickle.dump(dump_object, open(filename,'wb'))
+    return avg_loss
+
+def reload_loaders(args, clevr_dataset_train, clevr_dataset_test, train_bs, test_bs):
+    if not args.state_description:
+        # Use a weighted sampler for training:
+        #weights = clevr_dataset_train.answer_weights()
+        #sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
+
+        # Initialize Clevr dataset loaders
+        clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
+                                        shuffle=True, num_workers=8, collate_fn=utils.collate_samples_image)
+        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
+                                       shuffle=False, num_workers=8, collate_fn=utils.collate_samples_image)
+    else:
+        # Initialize Clevr dataset loaders
+        clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
+                                        shuffle=True, num_workers=1, collate_fn=utils.collate_samples_state_description)
+        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
+                                       shuffle=False, num_workers=1, collate_fn=utils.collate_samples_state_description)
+    return clevr_train_loader, clevr_test_loader
+
+def initialize_dataset(args, dictionaries):
+    if(not args.state_description):
+        train_transforms = transforms.Compose([transforms.Resize((128, 128)),
+                                           transforms.Pad(8),
+                                           transforms.RandomCrop((128, 128)),
+                                           transforms.RandomRotation(2.8),  # .05 rad
+                                           transforms.ToTensor()])
+        test_transforms = transforms.Compose([transforms.Resize((128, 128)),
+                                          transforms.ToTensor()])
+                                          
+        clevr_dataset_train = ClevrDataset(args.clevr_dir, True, dictionaries, train_transforms)
+        clevr_dataset_test = ClevrDataset(args.clevr_dir, False, dictionaries, test_transforms)
+        
+    else:
+        clevr_dataset_train = ClevrDatasetStateDescription(args.clevr_dir, True, dictionaries)
+        clevr_dataset_test = ClevrDatasetStateDescription(args.clevr_dir, False, dictionaries)
+    
+    return clevr_dataset_train, clevr_dataset_test 
+        
+    
 
 
 def main(args):
-    args.model_dirs = './model_{}_b{}_lr{}'.format(args.model, args.batch_size, args.lr)
-    args.features_dirs = './features'
+    config_name = args.model+("-sd" if args.state_description else "-fp")
+    hyp = config.hyperparams[config_name]
+
+    #override configuration dropout
+    if args.dropout > 0:
+        hyp['dropout'] = args.dropout
+
+    print('Loaded hyperparameters from configuration {}: {}'.format(config_name, hyp))
+
+    args.model_dirs = './model_{}_statedescription{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
+                      'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}'
+    args.model_dirs = args.model_dirs.format(
+                        args.model, args.state_description, args.batch_size, args.bs_step, args.bs_gamma, 
+                        args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
+                        args.invert_questions, args.clip_norm)
     if not os.path.exists(args.model_dirs):
         os.makedirs(args.model_dirs)
+    #create a file in this folder containing the overall configuration
+    args_str = str(args)
+    hyp_str = str(hyp)
+    all_configuration = args_str+'\n\n'+hyp_str
+    filename = os.path.join(args.model_dirs,'config.txt')
+    with open(filename,'w') as config_file:
+        config_file.write(all_configuration)
 
+    args.features_dirs = './features'
     args.test_results_dir = './test_results'
     if not os.path.exists(args.test_results_dir):
         os.makedirs(args.test_results_dir)
@@ -177,44 +242,14 @@ def main(args):
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
-    
-    if(not args.state_description):
-        train_transforms = transforms.Compose([transforms.Resize((128, 128)),
-                                           transforms.Pad(8),
-                                           transforms.RandomCrop((128, 128)),
-                                           transforms.RandomRotation(2.8),  # .05 rad
-                                           transforms.ToTensor()])
-        test_transforms = transforms.Compose([transforms.Resize((128, 128)),
-                                          transforms.ToTensor()])
-                                          
-        clevr_dataset_train = ClevrDataset(args.clevr_dir, True, dictionaries, train_transforms)
-        clevr_dataset_test = ClevrDataset(args.clevr_dir, False, dictionaries, test_transforms)
-
-        # Use a weighted sampler for training:
-        weights = clevr_dataset_train.answer_weights()
-        sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
-        
-        # Initialize Clevr dataset loaders
-        clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
-                                        sampler=sampler, num_workers=8, collate_fn=utils.collate_samples_image)
-        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
-                                       shuffle=False, num_workers=8, collate_fn=utils.collate_samples_image)
-    else:
-        clevr_dataset_train = ClevrDatasetStateDescription(args.clevr_dir, True, dictionaries)
-        clevr_dataset_test = ClevrDatasetStateDescription(args.clevr_dir, False, dictionaries)
-        
-        # Initialize Clevr dataset loaders
-        clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
-                                        shuffle=True, num_workers=8, collate_fn=utils.collate_samples_state_description)
-        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
-                                       shuffle=False, num_workers=8, collate_fn=utils.collate_samples_state_description)
-
+    clevr_dataset_train, clevr_dataset_test  = initialize_dataset(args, dictionaries)
     print('CLEVR dataset initialized!')
 
     # Build the model
     args.qdict_size = len(dictionaries[0])
     args.adict_size = len(dictionaries[1])
-    model = RN(args)
+
+    model = RN(args, hyp)
 
     if torch.cuda.device_count() > 1 and args.cuda:
         model = torch.nn.DataParallel(model)
@@ -279,16 +314,40 @@ def main(args):
         print('Testing epoch {}'.format(start_epoch))
         test(clevr_test_loader, model, start_epoch, dictionaries, args)
     else:
+        bs = args.batch_size
+
         # perform a full training
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-4)
+        # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
+        scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
         print('Training ({} epochs) is starting...'.format(args.epochs))
         for epoch in progress_bar:
+            
+            if(((args.bs_max > 0 and bs < args.bs_max) or args.bs_max < 0 ) and (epoch % args.bs_step == 0 or epoch == start_epoch)):
+                bs = math.floor(args.batch_size * (args.bs_gamma ** (epoch // args.bs_step)))
+                if bs > args.bs_max and args.bs_max > 0:
+                    bs = args.bs_max
+                clevr_train_loader, clevr_test_loader = reload_loaders(args, clevr_dataset_train, clevr_dataset_test, bs, args.test_batch_size)
+
+                #restart optimizer in order to restart learning rate scheduler
+                #for param_group in optimizer.param_groups:
+                #    param_group['lr'] = args.lr
+                #scheduler = lr_scheduler.CosineAnnealingLR(optimizer, step, min_lr)
+                print('Dataset reinitialized with batch size {}'.format(bs))
+            
+            if((args.lr_max > 0 and scheduler.get_lr()[0]<args.lr_max) or args.lr_max < 0):
+                scheduler.step()
+                    
+            print('Current learning rate: {}'.format(scheduler.get_lr()))
+                
             # TRAIN
             progress_bar.set_description('TRAIN')
             train(clevr_train_loader, model, optimizer, epoch, args)
+
             # TEST
             progress_bar.set_description('TEST')
             test(clevr_test_loader, model, epoch, dictionaries, args)
+
             # SAVE MODEL
             filename = 'RN_epoch_{:02d}.pth'.format(epoch)
             torch.save(model.state_dict(), os.path.join(args.model_dirs, filename))
@@ -299,6 +358,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch Relational-Network CLEVR')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
+    parser.add_argument('--test-batch-size', type=int, default=640,
+                        help='input batch size for training (default: 640)')
     parser.add_argument('--epochs', type=int, default=350, metavar='N',
                         help='number of epochs to train (default: 350)')
     parser.add_argument('--lr', type=float, default=0.00025, metavar='LR',
@@ -325,6 +386,19 @@ if __name__ == '__main__':
                     help='use convolutional layer from another training')
     parser.add_argument('--state-description', action='store_true', default=False,
                         help='disables CUDA training')
-
+    parser.add_argument('--lr-max', type=float, default=-1,
+                        help='max learning rate')
+    parser.add_argument('--lr-gamma', type=float, default=1, 
+                        help='increasing rate for the learning rate. 1 to keep LR constant.')
+    parser.add_argument('--lr-step', type=int, default=20,
+                        help='number of epochs before lr update')
+    parser.add_argument('--bs-max', type=int, default=-1,
+                        help='max batch-size')
+    parser.add_argument('--bs-gamma', type=float, default=1, 
+                        help='increasing rate for the batch size. 1 to keep batch-size constant.')
+    parser.add_argument('--bs-step', type=int, default=20, 
+                        help='number of epochs before batch-size update')
+    parser.add_argument('--dropout', type=float, default=-1,
+                        help='dropout rate. -1 to use value from configuration')
     args = parser.parse_args()
     main(args)

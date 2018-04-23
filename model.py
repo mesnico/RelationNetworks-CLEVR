@@ -5,7 +5,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import math
-import config
 
 class ConvInputModel(nn.Module):
     def __init__(self):
@@ -201,14 +200,11 @@ class RelationalLayerOriginal(RelationalLayerBase):
         return F.log_softmax(x_f, dim=1)
 
 class RN(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, hyp):
         super(RN, self).__init__()
         self.coord_tensor = None
         self.on_gpu = False
         
-        config_name = args.model+("-sd" if args.state_description else "-fp")
-        hyp = config.hyperparams[config_name]
-        print('Loaded hyperparameters from configuration {}: {}'.format(config_name, hyp))
         # CNN
         self.conv = ConvInputModel()
         self.state_desc = args.state_description            
