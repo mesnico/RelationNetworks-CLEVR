@@ -21,7 +21,6 @@ from tqdm import tqdm, trange
 
 import utils
 import math
-import config
 from clevr_dataset_connector import ClevrDataset, ClevrDatasetStateDescription
 from model import RN
 
@@ -201,9 +200,10 @@ def initialize_dataset(args, dictionaries):
 
 
 def main(args):
+    #load hyperparameters from configuration file
     config_name = args.model+("-sd" if args.state_description else "-fp")
-    hyp = config.hyperparams[config_name]
-
+    with open(args.config) as config_file: 
+        hyp = json.load(config_file)['hyperparams'][config_name]
     #override configuration dropout
     if args.dropout > 0:
         hyp['dropout'] = args.dropout
@@ -400,5 +400,7 @@ if __name__ == '__main__':
                         help='number of epochs before batch-size update')
     parser.add_argument('--dropout', type=float, default=-1,
                         help='dropout rate. -1 to use value from configuration')
+    parser.add_argument('--config', type=str, default='config.json',
+                        help='configuration file for hyperparameters loading')
     args = parser.parse_args()
     main(args)
