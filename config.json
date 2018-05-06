@@ -2,10 +2,8 @@
     "hyperparams" : {
         "original-fp" :
 	        {
-	            "g_fc1": 256,
-	            "g_fc2": 256,
-	            "g_fc3": 256,
-	            "g_fc4": 256,
+	            "state_description": false,
+                "g_layers": [256,256,256,256],
 	            
 	            "f_fc1": 256,
 	            "f_fc2": 256,
@@ -17,10 +15,8 @@
 	        },
         "original-sd":
 	        {
-	            "g_fc1": 512,
-	            "g_fc2": 512,
-	            "g_fc3": 512,
-	            "g_fc4": 512,
+	            "state_description": true,
+	            "g_layers": [512,512,512,512],
 	            
 	            "f_fc1": 512,
 	            "f_fc2": 1024,
@@ -32,15 +28,12 @@
 	        },
         "ir-fp":
 	        {
-	            "g_fc1": 256,
-	            "g_fc2": 256,
-	            "g_fc3": 256,
-	            "g_fc4": 256,
+                "state_description": false,
+                "g_layers": [256,256,256,256],
+                "question_injection_position": 0,
 	            
 	            "f_fc1": 256,
 	            "f_fc2": 256,
-	            
-	            "h_fc1": 256,
 	            
 	            "dropout": 0.5,
 	            "lstm_hidden": 128,
@@ -49,15 +42,12 @@
 	        },
         "ir-sd":
 	        {
-	            "g_fc1": 512,
-	            "g_fc2": 512,
-	            "g_fc3": 512,
-	            "g_fc4": 512,
+                "state_description": true,
+	            "g_layers": [512,512,512,512],
+				"question_injection_position": 2,
 	            
 	            "f_fc1": 512,
 	            "f_fc2": 1024,
-	            
-	            "h_fc1": 512,
 	            
 	            "dropout": 0.05,
 	            "lstm_hidden": 256,

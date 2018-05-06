@@ -158,8 +158,8 @@ def test(data, model, epoch, dictionaries, args):
     pickle.dump(dump_object, open(filename,'wb'))
     return avg_loss
 
-def reload_loaders(args, clevr_dataset_train, clevr_dataset_test, train_bs, test_bs):
-    if not args.state_description:
+def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, state_description = False):
+    if not state_description:
         # Use a weighted sampler for training:
         #weights = clevr_dataset_train.answer_weights()
         #sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
@@ -177,8 +177,8 @@ def reload_loaders(args, clevr_dataset_train, clevr_dataset_test, train_bs, test
                                        shuffle=False, num_workers=1, collate_fn=utils.collate_samples_state_description)
     return clevr_train_loader, clevr_test_loader
 
-def initialize_dataset(args, dictionaries):
-    if(not args.state_description):
+def initialize_dataset(clevr_dir, dictionaries, state_description=True):
+    if not state_description:
         train_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                            transforms.Pad(8),
                                            transforms.RandomCrop((128, 128)),
@@ -187,12 +187,12 @@ def initialize_dataset(args, dictionaries):
         test_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                           transforms.ToTensor()])
                                           
-        clevr_dataset_train = ClevrDataset(args.clevr_dir, True, dictionaries, train_transforms)
-        clevr_dataset_test = ClevrDataset(args.clevr_dir, False, dictionaries, test_transforms)
+        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms)
+        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms)
         
     else:
-        clevr_dataset_train = ClevrDatasetStateDescription(args.clevr_dir, True, dictionaries)
-        clevr_dataset_test = ClevrDatasetStateDescription(args.clevr_dir, False, dictionaries)
+        clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries)
+        clevr_dataset_test = ClevrDatasetStateDescription(clevr_dir, False, dictionaries)
     
     return clevr_dataset_train, clevr_dataset_test 
         
@@ -201,19 +201,20 @@ def initialize_dataset(args, dictionaries):
 
 def main(args):
     #load hyperparameters from configuration file
-    config_name = args.model+("-sd" if args.state_description else "-fp")
     with open(args.config) as config_file: 
-        hyp = json.load(config_file)['hyperparams'][config_name]
+        hyp = json.load(config_file)['hyperparams'][args.model]
     #override configuration dropout
     if args.dropout > 0:
         hyp['dropout'] = args.dropout
+    if args.question_injection > 0:
+        hyp['question_injection_position'] = args.question_injection
 
-    print('Loaded hyperparameters from configuration {}: {}'.format(config_name, hyp))
+    print('Loaded hyperparameters from configuration {}: {}'.format(args.config, hyp))
 
-    args.model_dirs = './model_{}_statedescription{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
+    args.model_dirs = './model_{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
                       'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}'
     args.model_dirs = args.model_dirs.format(
-                        args.model, args.state_description, args.batch_size, args.bs_step, args.bs_gamma, 
+                        args.model, args.batch_size, args.bs_step, args.bs_gamma, 
                         args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
                         args.invert_questions, args.clip_norm)
     if not os.path.exists(args.model_dirs):
@@ -242,7 +243,7 @@ def main(args):
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
-    clevr_dataset_train, clevr_dataset_test  = initialize_dataset(args, dictionaries)
+    clevr_dataset_train, clevr_dataset_test  = initialize_dataset(args.clevr_dir, dictionaries, hyp['state_description'])
     print('CLEVR dataset initialized!')
 
     # Build the model
@@ -327,7 +328,7 @@ def main(args):
                 bs = math.floor(args.batch_size * (args.bs_gamma ** (epoch // args.bs_step)))
                 if bs > args.bs_max and args.bs_max > 0:
                     bs = args.bs_max
-                clevr_train_loader, clevr_test_loader = reload_loaders(args, clevr_dataset_train, clevr_dataset_test, bs, args.test_batch_size)
+                clevr_train_loader, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, bs, args.test_batch_size, hyp['state_description'])
 
                 #restart optimizer in order to restart learning rate scheduler
                 #for param_group in optimizer.param_groups:
@@ -376,7 +377,7 @@ if __name__ == '__main__':
                         help='resume from model stored')
     parser.add_argument('--clevr-dir', type=str, default='.',
                         help='base directory of CLEVR dataset')
-    parser.add_argument('--model', type=str, choices=['original', 'ir'], default='original',
+    parser.add_argument('--model', type=str, default='original-fp',
                         help='which model is used to train the network')
     parser.add_argument('--invert-questions', action='store_true', default=False,
                         help='invert the question word indexes for LSTM processing')
@@ -384,8 +385,6 @@ if __name__ == '__main__':
                         help='perform only a single test. To use with --resume')
     parser.add_argument('--conv-transfer-learn', type=str,
                     help='use convolutional layer from another training')
-    parser.add_argument('--state-description', action='store_true', default=False,
-                        help='disables CUDA training')
     parser.add_argument('--lr-max', type=float, default=-1,
                         help='max learning rate')
     parser.add_argument('--lr-gamma', type=float, default=1, 
@@ -402,5 +401,7 @@ if __name__ == '__main__':
                         help='dropout rate. -1 to use value from configuration')
     parser.add_argument('--config', type=str, default='config.json',
                         help='configuration file for hyperparameters loading')
+    parser.add_argument('--question-injection', type=int, default=-1, 
+                        help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value)')
     args = parser.parse_args()
     main(args)

@@ -60,12 +60,8 @@ class QuestionEmbedModel(nn.Module):
 class RelationalLayerBase(nn.Module):
     def __init__(self, in_size, out_size, qst_size, hyp):
         super().__init__()
-        
-        self.g_fc2 = nn.Linear(hyp["g_fc1"], hyp["g_fc2"])
-        self.g_fc3 = nn.Linear(hyp["g_fc2"], hyp["g_fc3"])
-        self.g_fc4 = nn.Linear(hyp["g_fc3"], hyp["g_fc4"])
 
-        self.f_fc1 = nn.Linear(hyp["g_fc4"], hyp["f_fc1"])
+        self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
     
@@ -82,12 +78,27 @@ class RelationalLayerBase(nn.Module):
         super().cuda()
     
 
-class RelationalLayerIR(RelationalLayerBase):
+class RelationalLayer(RelationalLayerBase):
     def __init__(self, in_size, out_size, qst_size, hyp):
         super().__init__(in_size, out_size, qst_size, hyp)
 
-        self.g_fc1 = nn.Linear(in_size, hyp["g_fc1"])
-        self.h_fc1 = nn.Linear(hyp["g_fc4"]+qst_size, hyp["h_fc1"])
+        self.quest_inject_position = hyp["question_injection_position"]
+        self.in_size = in_size
+
+	    #create all g layers
+        self.g_layers = []
+        self.g_layers_size = hyp["g_layers"]
+        for idx,g_layer_size in enumerate(hyp["g_layers"]):
+            in_s = in_size if idx==0 else hyp["g_layers"][idx-1]
+            out_s = g_layer_size
+            if idx==self.quest_inject_position:
+                #create the h layer. Now, for better code organization, it is part of the g layers pool. 
+                l = nn.Linear(in_s+qst_size, out_s)
+            else:
+                #create a standard g layer.
+                l = nn.Linear(in_s, out_s)
+            self.g_layers.append(l)	
+        self.g_layers = nn.ModuleList(self.g_layers)
     
     def forward(self, x, qst):
         # x = (B x 8*8 x 24)
@@ -113,80 +124,27 @@ class RelationalLayerIR(RelationalLayerBase):
         
         # reshape for passing through network
         x_ = x_full.view(b * d**2, self.in_size)
-        x_ = self.g_fc1(x_)
-        x_ = F.relu(x_)
-        x_ = self.g_fc2(x_)
-        x_ = F.relu(x_)
-        x_ = self.g_fc3(x_)
-        x_ = F.relu(x_)
-        x_ = self.g_fc4(x_)
-        x_ = F.relu(x_)
 
-        #questions inserted
-        x_img = x_.view(b,d,d,self.hyp["g_fc4"])
-        qst = qst.repeat(1,1,d,1)
-        x_concat = torch.cat([x_img,qst],3) #(B x 64 x 64 x 128+256)
+        #create g and inject the question at the position pointed by quest_inject_position.
+        for idx, (g_layer, g_layer_size) in enumerate(zip(self.g_layers, self.g_layers_size)):
+            if idx==self.quest_inject_position:
+                in_size = self.in_size if idx==0 else self.g_layers_size[idx-1]
 
-	    #another layer
-        x_ = x_concat.view(b*(d**2),self.hyp["g_fc4"]+self.qst_size)
-        x_ = self.h_fc1(x_)
-        x_ = F.relu(x_)
+                # questions inserted
+                x_img = x_.view(b,d,d,in_size)
+                qst = qst.repeat(1,1,d,1)
+                x_concat = torch.cat([x_img,qst],3) #(B x 64 x 64 x 128+256)
+
+                # h layer
+                x_ = x_concat.view(b*(d**2),in_size+self.qst_size)
+                x_ = g_layer(x_)
+                x_ = F.relu(x_)
+            else:
+                x_ = g_layer(x_)
+                x_ = F.relu(x_)
         
         # reshape again and sum
-        x_g = x_.view(b, d**2, self.hyp["h_fc1"])
-        x_g = x_g.sum(1).squeeze(1)
-        
-        """f"""
-        x_f = self.f_fc1(x_g)
-        x_f = F.relu(x_f)
-        x_f = self.f_fc2(x_f)
-        x_f = self.dropout(x_f)
-        x_f = F.relu(x_f)
-        x_f = self.f_fc3(x_f)
-
-        return F.log_softmax(x_f, dim=1)
-
-class RelationalLayerOriginal(RelationalLayerBase):
-    def __init__(self, in_size, out_size, qst_size, hyp):
-        super().__init__(in_size, out_size, qst_size, hyp)
-        
-        self.g_fc1 = nn.Linear(in_size + qst_size, hyp["g_fc1"])
-    
-    def forward(self, x, qst):  #(b x n_obj x feats)
-        # x = (B x 8*8 x 24)
-        # qst = (B x 128)
-        """g"""
-        b, d, k = x.size()
-        qst_size = qst.size()[1]
-            
-        # add question everywhere
-        qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
-        qst = qst.repeat(1, d, 1)                       # (B x 64 x 128)
-        qst = torch.unsqueeze(qst, 2)                      # (B x 64 x 1 x 128)
-        
-        # cast all pairs against each other
-        x_i = torch.unsqueeze(x, 1)                   # (B x 1 x 64 x 26)
-        x_i = x_i.repeat(1, d, 1, 1)                    # (B x 64 x 64 x 26)
-        x_j = torch.unsqueeze(x, 2)                   # (B x 64 x 1 x 26)
-        x_j = torch.cat([x_j, qst], 3)
-        x_j = x_j.repeat(1, 1, d, 1)                    # (B x 64 x 64 x 26+128)
-        
-        # concatenate all together
-        x_full = torch.cat([x_i, x_j], 3)                  # (B x 64 x 64 x 2*26+128)
-        
-        # reshape for passing through network
-        x_ = x_full.view(b * d**2, self.in_size+qst_size)
-        x_ = self.g_fc1(x_)
-        x_ = F.relu(x_)
-        x_ = self.g_fc2(x_)
-        x_ = F.relu(x_)
-        x_ = self.g_fc3(x_)
-        x_ = F.relu(x_)
-        x_ = self.g_fc4(x_)
-        x_ = F.relu(x_)
-        
-        # reshape again and sum
-        x_g = x_.view(b, d**2, self.hyp["g_fc4"])
+        x_g = x_.view(b, d**2, self.g_layers_size[-1])
         x_g = x_g.sum(1).squeeze(1)
         
         """f"""
@@ -207,24 +165,20 @@ class RN(nn.Module):
         
         # CNN
         self.conv = ConvInputModel()
-        self.state_desc = args.state_description            
+        self.state_desc = hyp['state_description']            
             
         # LSTM
         hidden_size = hyp["lstm_hidden"]
         self.text = QuestionEmbedModel(args.qdict_size, embed=hyp["lstm_word_emb"], hidden=hidden_size)
         
         # RELATIONAL LAYER
-
         self.rl_in_size = hyp["rl_in_size"]
         self.rl_out_size = args.adict_size
-        if args.model == 'ir':           
-            self.rl = RelationalLayerIR(self.rl_in_size, self.rl_out_size, hidden_size, hyp) 
-            print('Using IR model')
-        elif args.model == 'original':        
-            self.rl = RelationalLayerOriginal(self.rl_in_size, self.rl_out_size, hidden_size, hyp)
-            print('Using Original DeepMind model')
-        else:
-            print('Model error')
+        self.rl = RelationalLayer(self.rl_in_size, self.rl_out_size, hidden_size, hyp) 
+        if hyp["question_injection_position"] != 0:          
+            print('Supposing IR model')
+        else:     
+            print('Supposing original DeepMind model')
 
     def forward(self, img, qst_idxs):
         if self.state_desc:
