@@ -206,10 +206,10 @@ def main(args):
     #override configuration dropout
     if args.dropout > 0:
         hyp['dropout'] = args.dropout
-    if args.question_injection > 0:
+    if args.question_injection >= 0:
         hyp['question_injection_position'] = args.question_injection
 
-    print('Loaded hyperparameters from configuration {}: {}'.format(args.config, hyp))
+    print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
     args.model_dirs = './model_{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
                       'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}'
