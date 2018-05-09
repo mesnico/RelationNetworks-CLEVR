@@ -68,7 +68,7 @@ def to_dictionary_indexes(dictionary, sentence):
     idxs = torch.LongTensor([dictionary[w] for w in split])
     return idxs
 
-def collate_samples(batch):
+def collate_samples_from_pixels(batch):
     return collate_samples(batch, False, False)
     
 def collate_samples_state_description(batch):
