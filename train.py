@@ -166,9 +166,9 @@ def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, s
 
         # Initialize Clevr dataset loaders
         clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
-                                        shuffle=True, num_workers=8, collate_fn=utils.collate_samples_image)
+                                        shuffle=True, num_workers=8, collate_fn=utils.collate_samples)
         clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
-                                       shuffle=False, num_workers=8, collate_fn=utils.collate_samples_image)
+                                       shuffle=False, num_workers=8, collate_fn=utils.collate_samples)
     else:
         # Initialize Clevr dataset loaders
         clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
@@ -212,11 +212,12 @@ def main(args):
     print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
     args.model_dirs = './model_{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
-                      'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}'
+                      'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}_fc1{}_fc2{}'
     args.model_dirs = args.model_dirs.format(
                         args.model, args.batch_size, args.bs_step, args.bs_gamma, 
                         args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
-                        args.invert_questions, args.clip_norm)
+                        args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'],
+                        hyp['f_fc1'], hyp['f_fc2'])
     if not os.path.exists(args.model_dirs):
         os.makedirs(args.model_dirs)
     #create a file in this folder containing the overall configuration

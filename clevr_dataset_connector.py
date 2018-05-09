@@ -157,12 +157,13 @@ class ClevrDatasetImages(Dataset):
     Loads only images from the CLEVR dataset
     """
 
-    def __init__(self, clevr_dir, mode, transform=None):
+    def __init__(self, clevr_dir, train, transform=None):
         """
         :param clevr_dir: Root directory of CLEVR dataset
         :param mode: Specifies if we want to read in val, train or test folder
         :param transform: Optional transform to be applied on a sample.
         """
+        mode = 'train' if train else 'val'
         self.img_dir = os.path.join(clevr_dir, 'images', mode)
         self.transform = transform
 
@@ -178,3 +179,13 @@ class ClevrDatasetImages(Dataset):
             image = self.transform(image)
 
         return image
+
+class ClevrDatasetImagesStateDescription(ClevrDatasetStateDescription):
+    def __init__(self, clevr_dir, train):
+        super().__init__(clevr_dir, train, None)
+
+    def __len__(self):
+        return len(self.objects)
+
+    def __getitem__(self, idx):
+        return self.objects[idx]    

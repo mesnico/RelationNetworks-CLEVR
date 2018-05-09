@@ -58,12 +58,13 @@ class QuestionEmbedModel(nn.Module):
         return qst_emb
 
 class RelationalLayerBase(nn.Module):
-    def __init__(self, in_size, out_size, qst_size, hyp):
+    def __init__(self, in_size, out_size, qst_size, hyp, extraction=False):
         super().__init__()
 
-        self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
-        self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
-        self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
+        if not extraction:
+            self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
+            self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
+            self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
     
         self.dropout = nn.Dropout(p=hyp["dropout"])
         
@@ -79,8 +80,8 @@ class RelationalLayerBase(nn.Module):
     
 
 class RelationalLayer(RelationalLayerBase):
-    def __init__(self, in_size, out_size, qst_size, hyp):
-        super().__init__(in_size, out_size, qst_size, hyp)
+    def __init__(self, in_size, out_size, qst_size, hyp, extraction=False):
+        super().__init__(in_size, out_size, qst_size, hyp, extraction)
 
         self.quest_inject_position = hyp["question_injection_position"]
         self.in_size = in_size
@@ -99,6 +100,7 @@ class RelationalLayer(RelationalLayerBase):
                 l = nn.Linear(in_s, out_s)
             self.g_layers.append(l)	
         self.g_layers = nn.ModuleList(self.g_layers)
+        self.extraction = extraction
     
     def forward(self, x, qst):
         # x = (B x 8*8 x 24)
@@ -142,6 +144,9 @@ class RelationalLayer(RelationalLayerBase):
             else:
                 x_ = g_layer(x_)
                 x_ = F.relu(x_)
+
+        if self.extraction:
+            return None
         
         # reshape again and sum
         x_g = x_.view(b, d**2, self.g_layers_size[-1])
@@ -158,7 +163,7 @@ class RelationalLayer(RelationalLayerBase):
         return F.log_softmax(x_f, dim=1)
 
 class RN(nn.Module):
-    def __init__(self, args, hyp):
+    def __init__(self, args, hyp, extraction=False):
         super(RN, self).__init__()
         self.coord_tensor = None
         self.on_gpu = False
@@ -174,7 +179,7 @@ class RN(nn.Module):
         # RELATIONAL LAYER
         self.rl_in_size = hyp["rl_in_size"]
         self.rl_out_size = args.adict_size
-        self.rl = RelationalLayer(self.rl_in_size, self.rl_out_size, hidden_size, hyp) 
+        self.rl = RelationalLayer(self.rl_in_size, self.rl_out_size, hidden_size, hyp, extraction) 
         if hyp["question_injection_position"] != 0:          
             print('Supposing IR model')
         else:     

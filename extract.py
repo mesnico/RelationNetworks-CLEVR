@@ -6,6 +6,7 @@ from __future__ import print_function
 import argparse
 import os
 import pickle
+import json
 
 import torch
 from torch.autograd import Variable
@@ -14,13 +15,11 @@ from torchvision import transforms
 from tqdm import tqdm
 
 import utils
-from clevr_dataset_connector import ClevrDatasetImages
+from clevr_dataset_connector import ClevrDatasetImages, ClevrDatasetImagesStateDescription
 from model import RN
 
-
-def extract_features_rl(data, max_features_file, avg_features_file, model, args):
-    assert args.layer, "A layer must be specified."
-    lay, io = args.layer.split(':')
+def extract_features_rl(data, quest_inject_index, max_features_file, avg_features_file, model, args):
+    lay, io = args.layer.split(':') #TODO getting extraction layer from quest_inject_index, lay is unused
 
     maxf = []
     avgf = []
@@ -53,43 +52,75 @@ def extract_features_rl(data, max_features_file, avg_features_file, model, args)
 
     model.eval()
 
+    lay = 'g_layers'
     progress_bar = tqdm(data)
-    progress_bar.set_description('FEATURES EXTRACTION from {}'.format(args.layer))
+    progress_bar.set_description('FEATURES EXTRACTION from {}, position {}'.format(lay, quest_inject_index))
     max_features = []
     avg_features = []
+
+    extraction_layer = model._modules.get('rl')._modules.get(lay)[quest_inject_index]
+    h = extraction_layer.register_forward_hook(hook_function)
     for batch_idx, sample_batched in enumerate(progress_bar):
-        qst = torch.LongTensor(args.batch_size, 1).zero_()
+        qst = torch.LongTensor(len(sample_batched), 1).zero_()
         qst = Variable(qst)
 
         img = Variable(sample_batched)
         if args.cuda:
             qst = qst.cuda()
             img = img.cuda()
-
-        extraction_layer = model._modules.get('rl')._modules.get(lay)
-        h = extraction_layer.register_forward_hook(hook_function)
+        
         model(img, qst)
-        h.remove()
 
         max_features.append((batch_idx, maxf))
         avg_features.append((batch_idx, avgf))
 
+    h.remove()
+
     pickle.dump(max_features, max_features_file)
     pickle.dump(avg_features, avg_features_file)
 
+def reload_loaders(clevr_dataset_test, test_bs, state_description = False): #TODO here: add custom collect function
+    if not state_description:
+
+        # Initialize Clevr dataset loader
+        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
+                                       shuffle=False, num_workers=8)
+    else:
+        # Initialize Clevr dataset loader
+        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
+                                       shuffle=False, num_workers=1, collate_fn=utils.collate_samples_images_state_description)
+    return clevr_test_loader
+
+def initialize_dataset(clevr_dir, state_description=True):
+    if not state_description:
+        test_transforms = transforms.Compose([transforms.Resize((128, 128)),
+                                          transforms.ToTensor()])
+                                          
+        clevr_dataset_test = ClevrDatasetImages(clevr_dir, False, test_transforms)
+        
+    else:
+        clevr_dataset_test = ClevrDatasetImagesStateDescription(clevr_dir, False)
+    
+    return clevr_dataset_test 
+
 
 def main(args):
-    assert os.path.isfile(args.checkpoint), "Checkpoint file not found: {}".format(args.checkpoint)
+    #load hyperparameters from configuration file
+    with open(args.config) as config_file: 
+        hyp = json.load(config_file)['hyperparams'][args.model]
+    #override configuration dropout
+    if args.question_injection >= 0:
+        hyp['question_injection_position'] = args.question_injection
+
+    print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
+
+    #assert os.path.isfile(args.checkpoint), "Checkpoint file not found: {}".format(args.checkpoint)
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-    test_transforms = transforms.Compose([transforms.Resize((128, 128)),
-                                          transforms.ToTensor()])
-
     # Initialize CLEVR Loader
-    clevr_dataset_images = ClevrDatasetImages(args.clevr_dir, 'val', test_transforms)
-    clevr_feat_extraction_loader = DataLoader(clevr_dataset_images, batch_size=args.batch_size,
-                                              shuffle=False, num_workers=8, drop_last=True)
+    clevr_dataset_test  = initialize_dataset(args.clevr_dir, hyp['state_description'])
+    clevr_feat_extraction_loader = reload_loaders(clevr_dataset_test, args.batch_size, hyp['state_description'])
 
     args.features_dirs = './features'
     if not os.path.exists(args.features_dirs):
@@ -98,13 +129,9 @@ def main(args):
     max_features = os.path.join(args.features_dirs, 'max_features.pickle')
     avg_features = os.path.join(args.features_dirs, 'avg_features.pickle')
 
-    print('Building word dictionaries from all the words in the dataset...')
-    dictionaries = utils.build_dictionaries(args.clevr_dir)
-    print('Word dictionary completed!')
-
-    args.qdict_size = len(dictionaries[0])
-    args.adict_size = len(dictionaries[1])
-    model = RN(args)
+    args.qdict_size = 0
+    args.adict_size = 0
+    model = RN(args, hyp, extraction=True)
 
     if torch.cuda.device_count() > 1 and args.cuda:
         model = torch.nn.DataParallel(model)
@@ -114,19 +141,19 @@ def main(args):
         model.cuda()
 
     # Load the model checkpoint
-    print('==> loading checkpoint {}'.format(args.checkpoint))
+    '''print('==> loading checkpoint {}'.format(args.checkpoint))
     checkpoint = torch.load(args.checkpoint)
 
     #removes 'module' from dict entries, pytorch bug #3805
     checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
     model.load_state_dict(checkpoint)
-    print('==> loaded checkpoint {}'.format(args.checkpoint))
+    print('==> loaded checkpoint {}'.format(args.checkpoint))'''
 
     max_features = open(max_features, 'wb')
     avg_features = open(avg_features, 'wb')
 
-    extract_features_rl(clevr_feat_extraction_loader, max_features, avg_features, model, args)
+    extract_features_rl(clevr_feat_extraction_loader, hyp['question_injection_position'], max_features, avg_features, model, args)
 
 
 if __name__ == '__main__':
@@ -134,9 +161,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch Relational-Network CLEVR Feature Extraction')
     parser.add_argument('--checkpoint', type=str,
                         help='model checkpoint to use for feature extraction')
-    parser.add_argument('--model', type=str, choices=['original', 'ir'], default='original',
+    parser.add_argument('--model', type=str, default='original-fp',
                         help='which model is used to train the network')
-    parser.add_argument('--layer', type=str, default=None,  # TODO set a default layer
+    parser.add_argument('--layer', type=str, default='unused:o',
                         help='layer of the RN from which features are extracted')
     parser.add_argument('--clevr-dir', type=str, default='.',
                         help='base directory of CLEVR dataset')
@@ -144,5 +171,9 @@ if __name__ == '__main__':
                         help='input batch size for training (default: 64)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
+    parser.add_argument('--config', type=str, default='config.json',
+                        help='configuration file for hyperparameters loading')
+    parser.add_argument('--question-injection', type=int, default=-1, 
+                        help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value)')
     args = parser.parse_args()
     main(args)

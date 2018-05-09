@@ -68,43 +68,52 @@ def to_dictionary_indexes(dictionary, sentence):
     idxs = torch.LongTensor([dictionary[w] for w in split])
     return idxs
 
-def collate_samples_image(batch):
-    return collate_samples(batch, False)
+def collate_samples(batch):
+    return collate_samples(batch, False, False)
     
 def collate_samples_state_description(batch):
-    return collate_samples(batch, True)
+    return collate_samples(batch, True, False)
+
+def collate_samples_images_state_description(batch):
+    return collate_samples(batch, True, True)
     
-def collate_samples(batch, state_description):
+def collate_samples(batch, state_description, only_images):
     """
     Used by DatasetLoader to merge together multiple samples into one mini-batch.
     """
-    images = [d['image'] for d in batch]
-    answers = [d['answer'] for d in batch]
-    questions = [d['question'] for d in batch]
-
-    # questions are not fixed length: they must be padded to the maximum length
-    # in this batch, in order to be inserted in a tensor
     batch_size = len(batch)
-    max_len = max(map(len, questions))
 
-    padded_questions = torch.LongTensor(batch_size, max_len).zero_()
-    for i, q in enumerate(questions):
-        padded_questions[i, :len(q)] = q
+    if only_images:
+        images = batch
+    else:
+        images = [d['image'] for d in batch]
+        answers = [d['answer'] for d in batch]
+        questions = [d['question'] for d in batch]
+
+        # questions are not fixed length: they must be padded to the maximum length
+        # in this batch, in order to be inserted in a tensor
+        max_len = max(map(len, questions))
+
+        padded_questions = torch.LongTensor(batch_size, max_len).zero_()
+        for i, q in enumerate(questions):
+            padded_questions[i, :len(q)] = q
         
-    if(state_description):
+    if state_description:
         max_len = 12
         #even object matrices should be padded (they are variable length)
         padded_objects = torch.FloatTensor(batch_size, max_len, images[0].size()[1]).zero_()
         for i, o in enumerate(images):
             padded_objects[i, :o.size()[0], :] = o
         images = padded_objects
-        
-    collated_batch = dict(
-        image=torch.stack(images),
-        answer=torch.stack(answers),
-        question=torch.stack(padded_questions)
-    )
-
+    
+    if only_images:
+        collated_batch = torch.stack(images)
+    else:
+        collated_batch = dict(
+            image=torch.stack(images),
+            answer=torch.stack(answers),
+            question=torch.stack(padded_questions)
+        )
     return collated_batch
 
 
