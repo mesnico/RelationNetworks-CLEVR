@@ -19,7 +19,8 @@ from clevr_dataset_connector import ClevrDatasetImages, ClevrDatasetImagesStateD
 from model import RN
 
 def extract_features_rl(data, quest_inject_index, max_features_file, avg_features_file, model, args):
-    lay, io = args.layer.split(':') #TODO getting extraction layer from quest_inject_index, lay is unused
+    #lay, io = args.layer.split(':') #TODO getting extraction layer from quest_inject_index, lay is unused
+    extr_layer_idx = quest_inject_index - 1
 
     maxf = []
     avgf = []
@@ -37,10 +38,7 @@ def extract_features_rl(data, quest_inject_index, max_features_file, avg_feature
                 '\n   data size:', o.data.size(),
                 '\n   data type:', o.data.type(),
         )'''
-        if io == 'i':
-            z = i[0]
-        else:
-            z = o
+        z = o #output of the layer
         # aggregate features
         d4_combinations = z.size()[0] // args.batch_size
         x_ = z.view(args.batch_size, d4_combinations, z.size()[1])
@@ -54,11 +52,11 @@ def extract_features_rl(data, quest_inject_index, max_features_file, avg_feature
 
     lay = 'g_layers'
     progress_bar = tqdm(data)
-    progress_bar.set_description('FEATURES EXTRACTION from {}, position {}'.format(lay, quest_inject_index))
+    progress_bar.set_description('FEATURES EXTRACTION from {}, output of g_fc{} layer'.format(lay, extr_layer_idx))
     max_features = []
     avg_features = []
 
-    extraction_layer = model._modules.get('rl')._modules.get(lay)[quest_inject_index]
+    extraction_layer = model._modules.get('rl')._modules.get(lay)[extr_layer_idx]
     h = extraction_layer.register_forward_hook(hook_function)
     for batch_idx, sample_batched in enumerate(progress_bar):
         qst = torch.LongTensor(len(sample_batched), 1).zero_()
@@ -114,7 +112,7 @@ def main(args):
 
     print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
-    #assert os.path.isfile(args.checkpoint), "Checkpoint file not found: {}".format(args.checkpoint)
+    assert os.path.isfile(args.checkpoint), "Checkpoint file not found: {}".format(args.checkpoint)
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -129,8 +127,12 @@ def main(args):
     max_features = os.path.join(args.features_dirs, 'max_features.pickle')
     avg_features = os.path.join(args.features_dirs, 'avg_features.pickle')
 
-    args.qdict_size = 0
-    args.adict_size = 0
+    print('Building word dictionaries from all the words in the dataset...')
+    dictionaries = utils.build_dictionaries(args.clevr_dir)
+    print('Word dictionary completed!')
+    args.qdict_size = len(dictionaries[0])
+    args.adict_size = len(dictionaries[1])
+
     model = RN(args, hyp, extraction=True)
 
     if torch.cuda.device_count() > 1 and args.cuda:
@@ -141,14 +143,14 @@ def main(args):
         model.cuda()
 
     # Load the model checkpoint
-    '''print('==> loading checkpoint {}'.format(args.checkpoint))
+    print('==> loading checkpoint {}'.format(args.checkpoint))
     checkpoint = torch.load(args.checkpoint)
 
     #removes 'module' from dict entries, pytorch bug #3805
     checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
     model.load_state_dict(checkpoint)
-    print('==> loaded checkpoint {}'.format(args.checkpoint))'''
+    print('==> loaded checkpoint {}'.format(args.checkpoint))
 
     max_features = open(max_features, 'wb')
     avg_features = open(avg_features, 'wb')
@@ -163,8 +165,6 @@ if __name__ == '__main__':
                         help='model checkpoint to use for feature extraction')
     parser.add_argument('--model', type=str, default='original-fp',
                         help='which model is used to train the network')
-    parser.add_argument('--layer', type=str, default='unused:o',
-                        help='layer of the RN from which features are extracted')
     parser.add_argument('--clevr-dir', type=str, default='.',
                         help='base directory of CLEVR dataset')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',

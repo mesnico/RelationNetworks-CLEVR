@@ -314,6 +314,7 @@ def main(args):
     if args.test:
         # perform a single test
         print('Testing epoch {}'.format(start_epoch))
+        _, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, args.batch_size, args.test_batch_size, hyp['state_description'])
         test(clevr_test_loader, model, start_epoch, dictionaries, args)
     else:
         bs = args.batch_size

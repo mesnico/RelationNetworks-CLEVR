@@ -58,13 +58,12 @@ class QuestionEmbedModel(nn.Module):
         return qst_emb
 
 class RelationalLayerBase(nn.Module):
-    def __init__(self, in_size, out_size, qst_size, hyp, extraction=False):
+    def __init__(self, in_size, out_size, qst_size, hyp):
         super().__init__()
 
-        if not extraction:
-            self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
-            self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
-            self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
+        self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
+        self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
+        self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
     
         self.dropout = nn.Dropout(p=hyp["dropout"])
         
@@ -81,7 +80,7 @@ class RelationalLayerBase(nn.Module):
 
 class RelationalLayer(RelationalLayerBase):
     def __init__(self, in_size, out_size, qst_size, hyp, extraction=False):
-        super().__init__(in_size, out_size, qst_size, hyp, extraction)
+        super().__init__(in_size, out_size, qst_size, hyp)
 
         self.quest_inject_position = hyp["question_injection_position"]
         self.in_size = in_size
