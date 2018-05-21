@@ -52,7 +52,7 @@ def extract_features_rl(data, quest_inject_index, max_features_file, avg_feature
 
     lay = 'g_layers'
     progress_bar = tqdm(data)
-    progress_bar.set_description('FEATURES EXTRACTION from {}, output of g_fc{} layer'.format(lay, extr_layer_idx))
+    progress_bar.set_description('FEATURES EXTRACTION from {}, output of g_fc{} layer'.format(lay, extr_layer_idx+1))
     max_features = []
     avg_features = []
 
@@ -82,11 +82,11 @@ def reload_loaders(clevr_dataset_test, test_bs, state_description = False): #TOD
 
         # Initialize Clevr dataset loader
         clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
-                                       shuffle=False, num_workers=8)
+                                       shuffle=False, num_workers=8, drop_last=True)
     else:
         # Initialize Clevr dataset loader
         clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
-                                       shuffle=False, num_workers=1, collate_fn=utils.collate_samples_images_state_description)
+                                       shuffle=False, num_workers=1, collate_fn=utils.collate_samples_images_state_description, drop_last=True)
     return clevr_test_loader
 
 def initialize_dataset(clevr_dir, state_description=True):

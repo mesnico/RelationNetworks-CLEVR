@@ -268,7 +268,7 @@ def main(args):
             checkpoint = torch.load(filename)
 
             #removes 'module' from dict entries, pytorch bug #3805
-            #checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
+            checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
             model.load_state_dict(checkpoint)
             print('==> loaded checkpoint {}'.format(filename))
