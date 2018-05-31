@@ -7,8 +7,10 @@ import argparse
 import os
 import pickle
 import json
+import numpy as np
 
 import torch
+import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -18,15 +20,15 @@ import utils
 from clevr_dataset_connector import ClevrDatasetImages, ClevrDatasetImagesStateDescription
 from model import RN
 
-def extract_features_rl(data, quest_inject_index, max_features_file, avg_features_file, model, args):
+def extract_features_rl(data, quest_inject_index, extr_layer_idx, lstm_emb_size, max_features_file, avg_features_file, model, args):
     #lay, io = args.layer.split(':') #TODO getting extraction layer from quest_inject_index, lay is unused
-    extr_layer_idx = quest_inject_index - 1
 
     maxf = []
     avgf = []
+    #noaggf = []
 
     def hook_function(m, i, o):
-        nonlocal maxf, avgf
+        nonlocal maxf, avgf #, noaggf
         '''print(
             'm:', type(m),
             '\ni:', type(i),
@@ -38,21 +40,25 @@ def extract_features_rl(data, quest_inject_index, max_features_file, avg_feature
                 '\n   data size:', o.data.size(),
                 '\n   data type:', o.data.type(),
         )'''
-        z = o #output of the layer
+        z = i[0] #input of the layer
         # aggregate features
         d4_combinations = z.size()[0] // args.batch_size
         x_ = z.view(args.batch_size, d4_combinations, z.size()[1])
+        if extr_layer_idx == quest_inject_index:
+            x_ = x_[:,:,:z.size()[1]-lstm_emb_size]
+        x_ = F.normalize(x_, p=2, dim=2)
         maxf = x_.max(1)[0].squeeze()
         avgf = x_.mean(1).squeeze()
 
         maxf = maxf.data.cpu().numpy()
         avgf = avgf.data.cpu().numpy()
+        #noaggf = x_.data.cpu().numpy()
 
     model.eval()
 
     lay = 'g_layers'
     progress_bar = tqdm(data)
-    progress_bar.set_description('FEATURES EXTRACTION from {}, output of g_fc{} layer'.format(lay, extr_layer_idx))
+    progress_bar.set_description('FEATURES EXTRACTION from {}, input of g_fc{} layer'.format(lay, extr_layer_idx+1))
     max_features = []
     avg_features = []
 
@@ -71,6 +77,8 @@ def extract_features_rl(data, quest_inject_index, max_features_file, avg_feature
 
         max_features.append((batch_idx, maxf))
         avg_features.append((batch_idx, avgf))
+        #with open('features/noaggr-{}.gz'.format(batch_idx),'wb') as f:
+        #    np.savetxt(f, np.reshape(noaggf, (args.batch_size,4096*256)), fmt='%.6e')
 
     h.remove()
 
@@ -82,11 +90,11 @@ def reload_loaders(clevr_dataset_test, test_bs, state_description = False): #TOD
 
         # Initialize Clevr dataset loader
         clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
-                                       shuffle=False, num_workers=8)
+                                       shuffle=False, num_workers=8, drop_last=True)
     else:
         # Initialize Clevr dataset loader
         clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
-                                       shuffle=False, num_workers=1, collate_fn=utils.collate_samples_images_state_description)
+                                       shuffle=False, num_workers=1, collate_fn=utils.collate_samples_images_state_description, drop_last=True)
     return clevr_test_loader
 
 def initialize_dataset(clevr_dir, state_description=True):
@@ -124,8 +132,8 @@ def main(args):
     if not os.path.exists(args.features_dirs):
         os.makedirs(args.features_dirs)
 
-    max_features = os.path.join(args.features_dirs, 'max_features.pickle')
-    avg_features = os.path.join(args.features_dirs, 'avg_features.pickle')
+    max_features = os.path.join(args.features_dirs, 'gfc{}_max_features.pickle'.format(args.extr_layer_idx))
+    avg_features = os.path.join(args.features_dirs, 'gfc{}_avg_features.pickle'.format(args.extr_layer_idx))
 
     print('Building word dictionaries from all the words in the dataset...')
     dictionaries = utils.build_dictionaries(args.clevr_dir)
@@ -133,6 +141,7 @@ def main(args):
     args.qdict_size = len(dictionaries[0])
     args.adict_size = len(dictionaries[1])
 
+    print('Cuda: {}'.format(args.cuda))
     model = RN(args, hyp, extraction=True)
 
     if torch.cuda.device_count() > 1 and args.cuda:
@@ -144,7 +153,7 @@ def main(args):
 
     # Load the model checkpoint
     print('==> loading checkpoint {}'.format(args.checkpoint))
-    checkpoint = torch.load(args.checkpoint)
+    checkpoint = torch.load(args.checkpoint, map_location=lambda storage, loc: storage)
 
     #removes 'module' from dict entries, pytorch bug #3805
     checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
@@ -155,7 +164,7 @@ def main(args):
     max_features = open(max_features, 'wb')
     avg_features = open(avg_features, 'wb')
 
-    extract_features_rl(clevr_feat_extraction_loader, hyp['question_injection_position'], max_features, avg_features, model, args)
+    extract_features_rl(clevr_feat_extraction_loader, hyp['question_injection_position'], args.extr_layer_idx, hyp['lstm_hidden'], max_features, avg_features, model, args)
 
 
 if __name__ == '__main__':
@@ -175,5 +184,7 @@ if __name__ == '__main__':
                         help='configuration file for hyperparameters loading')
     parser.add_argument('--question-injection', type=int, default=-1, 
                         help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value)')
+    parser.add_argument('--extr-layer-idx', type=int, default=2, 
+                        help='From which stage of g function features are extracted')
     args = parser.parse_args()
     main(args)

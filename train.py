@@ -268,7 +268,7 @@ def main(args):
             checkpoint = torch.load(filename)
 
             #removes 'module' from dict entries, pytorch bug #3805
-            #checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
+            checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
             model.load_state_dict(checkpoint)
             print('==> loaded checkpoint {}'.format(filename))
@@ -371,8 +371,8 @@ if __name__ == '__main__':
                         help='max norm for gradients; set to 0 to disable gradient clipping (default: 10)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
-                        help='random seed (default: 1)')
+    parser.add_argument('--seed', type=int, default=42, metavar='S',
+                        help='random seed (default: 42)')
     parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
     parser.add_argument('--resume', type=str,
