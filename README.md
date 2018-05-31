@@ -1,20 +1,37 @@
 # Relation Networks CLEVR
 A pytorch implementation for _A simple neural network module for relational reasoning_ [https://arxiv.org/abs/1706.01427](https://arxiv.org/abs/1706.01427), working on the CLEVR dataset.
 
-This code tries to reproduce results obtained by DeepMind team, both for the _From Pixel_ and _State Description_ versions they described. Since the paper does not expose all the network details, there could be variations to respect the original results.
+This code tries to reproduce results obtained by DeepMind team, both for the _From Pixels_ and _State Descriptions_ versions they described. Since the paper does not expose all the network details, there could be variations to respect the original results.
 
 The model can also be trained with a slightly modified version of RN, called IR, that enables relational features extraction in order to perform Relational Content Based Image Retrieval (R-CBIR).
 
-## Get the data
+## Accuracy
 
-Download and extract CLEVR_v1.0 dataset: http://cs.stanford.edu/people/jcjohns/clevr/
+Accuracy values measured on the test set:
+  
+| Model               |               |
+| ------------------- |:-------------:|
+| _From Pixels_       | 92.8%         |
+| _State Descriptions_ | 97.9%         |
+
+## Get ready
+1. Download and extract CLEVR_v1.0 dataset: http://cs.stanford.edu/people/jcjohns/clevr/
+2. Clone this repository and move into it:
+```
+git clone https://github.com/mesnico/RelationNetworks-CLEVR
+cd RelationNetworks-CLEVR
+```
+3. Install requirements: 
+```
+pip3 install -r requirements.txt
+```
 
 ## Train
 
 The training code can be run both using Docker or standard python installation with pytorch.
 If Docker is used, an image is built with all needed dependencies and it can be easily run inside a Docker container.
 
-### State-description version
+### State-descriptions version
 Move to the cloned directory and issue the command:
 ```sh
 python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --batch-size 640 --lr 0.000005 --lr-step 20 --lr-gamma 2 --lr-max 0.0005 --epochs 500 --clip-norm 50 --invert-questions --model 'original-sd' | tee logfile.log
@@ -22,14 +39,17 @@ python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --batch-size 640 --lr 0.000005 
 We reached an accuracy around 98% over the test set.
 Using these parameters, training is performed by using an exponential increase policy for the learning rate (slow start method). Without this policy, our training stopped at around 70% accuracy.
 Our training curve measured on the test set:
+
 ![accuracy](https://user-images.githubusercontent.com/25117311/39134913-0e02b028-4718-11e8-9bfc-d586962f0b1d.png)
 
-### From-pixel version
+### From-pixels version
 Move to the cloned directory and issue the command:
 ```sh
 python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --batch-size 640 --lr 0.000005 --lr-step 20 --lr-gamma 2 --lr-max 0.0005 --epochs 500 --clip-norm 50 --invert-questions --model 'original-fp' | tee logfile.log
 ```
-We are still collecting training results for the _From Pixel_ version. We'll make them available as soon as possible.
+We used the same exponential increase policy we employed for the _State Descriptions_ version. We were able to reach around 93% accuracy over the test set:
+
+![accuracy](https://user-images.githubusercontent.com/25117311/40773127-38240290-64c2-11e8-8e58-a989a390d6a9.png)
 
 ### Configuration file
 We prepared a json-coded configuration file from which model hyperparameters can be tuned. The option ```--config``` specifies a json configuration file, while the option ```--model``` loads a specific hyperparameters configuration defined in the file.
@@ -52,12 +72,13 @@ It is possible to run a test session even after training, by loading a specific 
 python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --test-batch-size 32 --model 'original-fp' --invert-questions --resume RN_epoch_xxx.pth --test
 ```
 
-## Confusion plot
+### Confusion plot
 Once test has been performed at least once (note that a test session can be explicitly run but it is also always run automatically after every train epoch), some insights are saved into ```test_results``` and a confusion plot can be generated from them:
 ```
 python3 confusionplot.py test_results/test.pickle
 ```
 ![confusion](https://user-images.githubusercontent.com/25117311/40371199-3d78f980-5de2-11e8-8c1f-478e908c19d8.png)
+
 This is useful to discover network weaknesses and possibly solve them.
 This plot is also saved inside ```img/``` folder.
 
