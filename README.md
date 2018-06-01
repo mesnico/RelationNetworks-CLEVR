@@ -87,3 +87,9 @@ This plot is also saved inside ```img/``` folder.
 * Questions and answers dictionaries are built from data in training set, so the model will not work with words never seen before.
 * All the words in the dataset are treated in a case-insensitive manner, since we don't want the model to learn case biases.
 * For network settings, see sections 4 and B from the original paper https://arxiv.org/abs/1706.01427.
+
+## Acknowledgements
+Special thanks to https://github.com/aelnouby and https://github.com/rosinality for their great support.
+Following, their Relation Network repositories working on CLEVR:
+- https://github.com/aelnouby/Relational-Networks
+- https://github.com/rosinality/relation-networks-pytorch
