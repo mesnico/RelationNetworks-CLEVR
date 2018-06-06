@@ -11,7 +11,7 @@ Accuracy values measured on the test set:
   
 | Model               |               |
 | ------------------- |:-------------:|
-| _From Pixels_       | 92.8%         |
+| _From Pixels_       | 93.6%         |
 | _State Descriptions_ | 97.9%         |
 
 ## Get ready
