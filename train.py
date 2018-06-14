@@ -172,9 +172,9 @@ def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, s
     else:
         # Initialize Clevr dataset loaders
         clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
-                                        shuffle=True, num_workers=1, collate_fn=utils.collate_samples_state_description)
+                                        shuffle=True, collate_fn=utils.collate_samples_state_description)
         clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
-                                       shuffle=False, num_workers=1, collate_fn=utils.collate_samples_state_description)
+                                       shuffle=False, collate_fn=utils.collate_samples_state_description)
     return clevr_train_loader, clevr_test_loader
 
 def initialize_dataset(clevr_dir, dictionaries, state_description=True):
@@ -211,10 +211,10 @@ def main(args):
 
     print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
-    args.model_dirs = './model_{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
+    args.model_dirs = './model_{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
                       'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}_fc1{}_fc2{}'
     args.model_dirs = args.model_dirs.format(
-                        args.model, args.batch_size, args.bs_step, args.bs_gamma, 
+                        args.model, hyp['dropout'], args.batch_size, args.bs_step, args.bs_gamma, 
                         args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
                         args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'],
                         hyp['f_fc1'], hyp['f_fc2'])
@@ -320,9 +320,14 @@ def main(args):
         bs = args.batch_size
 
         # perform a full training
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-4)
+        #TODO: find a better solution for general lr scheduling policies
+        candidate_lr = args.lr * args.lr_gamma ** (start_epoch-1 // args.lr_step)
+        lr = candidate_lr if candidate_lr <= args.lr_max else args.lr_max
+
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, weight_decay=1e-4)
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
+        scheduler.last_epoch = start_epoch
         print('Training ({} epochs) is starting...'.format(args.epochs))
         for epoch in progress_bar:
             
@@ -341,7 +346,7 @@ def main(args):
             if((args.lr_max > 0 and scheduler.get_lr()[0]<args.lr_max) or args.lr_max < 0):
                 scheduler.step()
                     
-            print('Current learning rate: {}'.format(scheduler.get_lr()))
+            print('Current learning rate: {}'.format(optimizer.param_groups[0]['lr']))
                 
             # TRAIN
             progress_bar.set_description('TRAIN')
