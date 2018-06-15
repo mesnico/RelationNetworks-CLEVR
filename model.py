@@ -6,6 +6,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import math
 
+import pdb
+
 class ConvInputModel(nn.Module):
     def __init__(self):
         super(ConvInputModel, self).__init__()
@@ -61,7 +63,12 @@ class RelationalLayerBase(nn.Module):
     def __init__(self, in_size, out_size, qst_size, hyp):
         super().__init__()
 
-        self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
+        if hyp["question_injection_position"] >= len(hyp["g_layers"]):
+            f_fc1_insize = hyp["g_layers"][-1] + qst_size
+        else:
+            f_fc1_insize = hyp["g_layers"][-1]
+
+        self.f_fc1 = nn.Linear(f_fc1_insize, hyp["f_fc1"])
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
     
@@ -107,11 +114,12 @@ class RelationalLayer(RelationalLayerBase):
         """g"""
         b, d, k = x.size()
         qst_size = qst.size()[1]
-        
+
         # add question everywhere
-        qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
-        qst = qst.repeat(1, d, 1)                       # (B x 64 x 128)
-        qst = torch.unsqueeze(qst, 2)                      # (B x 64 x 1 x 128)
+        unsq_qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
+        unsq_qst = unsq_qst.repeat(1, d, 1)                       # (B x 64 x 128)
+        unsq_qst = torch.unsqueeze(unsq_qst, 2)                      # (B x 64 x 1 x 128)
+        unsq_qst = unsq_qst.repeat(1,1,d,1)
         
         # cast all pairs against each other
         x_i = torch.unsqueeze(x, 1)                   # (B x 1 x 64 x 26)
@@ -133,27 +141,31 @@ class RelationalLayer(RelationalLayerBase):
 
                 # questions inserted
                 x_img = x_.view(b,d,d,in_size)
-                qst = qst.repeat(1,1,d,1)
-                x_concat = torch.cat([x_img,qst],3) #(B x 64 x 64 x 128+256)
-
-                # h layer
+                x_concat = torch.cat([x_img,unsq_qst],3) #(B x 64 x 64 x 128+256)
                 x_ = x_concat.view(b*(d**2),in_size+self.qst_size)
+                
                 x_ = g_layer(x_)
                 x_ = F.relu(x_)
+
+                if self.extraction:
+                    return None                
             else:
                 x_ = g_layer(x_)
                 x_ = F.relu(x_)
-
-        if self.extraction:
-            return None
         
         # reshape again and sum
         x_g = x_.view(b, d**2, self.g_layers_size[-1])
         x_g = x_g.sum(1).squeeze(1)
+
+        if self.quest_inject_position >= len(self.g_layers):        
+            #insert questions immediately after aggregating
+            x_g = torch.cat([x_g,qst],1) #(B x 128+256)
         
         """f"""
         x_f = self.f_fc1(x_g)
         x_f = F.relu(x_f)
+        if self.extraction:
+            return None    
         x_f = self.f_fc2(x_f)
         x_f = self.dropout(x_f)
         x_f = F.relu(x_f)

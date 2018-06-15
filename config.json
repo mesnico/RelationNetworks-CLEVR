@@ -28,6 +28,62 @@
 	            "lstm_word_emb": 32,
                 "rl_in_size": 14
 	        },
+	"original-sd-innetaggr-1":
+	        {
+	            "state_description": true,
+	            "g_layers": [512,512,512,2048],
+                "question_injection_position": 10,
+	            
+	            "f_fc1": 512,
+	            "f_fc2": 1024,
+	            
+	            "dropout": 0.15,
+	            "lstm_hidden": 256,
+	            "lstm_word_emb": 32,
+                "rl_in_size": 14
+	        },
+	"original-sd-innetaggr-2":
+	        {
+	            "state_description": true,
+	            "g_layers": [512,512,512,4096],
+                "question_injection_position": 10,
+	            
+	            "f_fc1": 512,
+	            "f_fc2": 1024,
+	            
+	            "dropout": 0.3,
+	            "lstm_hidden": 256,
+	            "lstm_word_emb": 32,
+                "rl_in_size": 14
+	        },
+	"original-sd-innetaggr-3":
+	        {
+	            "state_description": true,
+	            "g_layers": [512,512,512,4096],
+                "question_injection_position": 10,
+	            
+	            "f_fc1": 512,
+	            "f_fc2": 512,
+	            
+	            "dropout": 0.3,
+	            "lstm_hidden": 256,
+	            "lstm_word_emb": 32,
+                "rl_in_size": 14
+	        },
+	"original-sd-innetaggr-4":
+	        {
+	            "state_description": true,
+	            "g_layers": [512,512,512,4096],
+                "question_injection_position": 10,
+	            
+	            "f_fc1": 512,
+	            "f_fc2": 1024,
+	            
+	            "dropout": 0.4,
+	            "lstm_hidden": 256,
+	            "lstm_word_emb": 32,
+                "rl_in_size": 14
+	        },
         "ir-fp":
 	        {
                 "state_description": false,
