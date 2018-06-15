@@ -34,7 +34,7 @@ If Docker is used, an image is built with all needed dependencies and it can be 
 ### State-descriptions version
 Move to the cloned directory and issue the command:
 ```sh
-python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --batch-size 640 --lr 0.000005 --lr-step 20 --lr-gamma 2 --lr-max 0.0005 --epochs 500 --clip-norm 50 --invert-questions --model 'original-sd' | tee logfile.log
+python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --model 'original-sd' | tee logfile.log
 ```
 We reached an accuracy around 98% over the test set.
 Using these parameters, training is performed by using an exponential increase policy for the learning rate (slow start method). Without this policy, our training stopped at around 70% accuracy.
@@ -45,7 +45,7 @@ Our training curve measured on the test set:
 ### From-pixels version
 Move to the cloned directory and issue the command:
 ```sh
-python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --batch-size 640 --lr 0.000005 --lr-step 20 --lr-gamma 2 --lr-max 0.0005 --epochs 500 --clip-norm 50 --invert-questions --model 'original-fp' | tee logfile.log
+python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --model 'original-fp' | tee logfile.log
 ```
 We used the same exponential increase policy we employed for the _State Descriptions_ version. We were able to reach around 93% accuracy over the test set:
 
@@ -69,7 +69,7 @@ $ python3 train.py --help
 ## Test
 It is possible to run a test session even after training, by loading a specific checkpoint from the trained network collected at a certain epoch. This is possible by specifying the option ```--test```: 
 ```
-python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --test-batch-size 32 --model 'original-fp' --invert-questions --resume RN_epoch_xxx.pth --test
+python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --model 'original-fp' --resume RN_epoch_xxx.pth --test
 ```
 
 ### Confusion plot

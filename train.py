@@ -364,15 +364,15 @@ def main(args):
 if __name__ == '__main__':
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch Relational-Network CLEVR')
-    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
-                        help='input batch size for training (default: 64)')
+    parser.add_argument('--batch-size', type=int, default=640, metavar='N',
+                        help='input batch size for training (default: 640)')
     parser.add_argument('--test-batch-size', type=int, default=640,
                         help='input batch size for training (default: 640)')
     parser.add_argument('--epochs', type=int, default=350, metavar='N',
                         help='number of epochs to train (default: 350)')
-    parser.add_argument('--lr', type=float, default=0.00025, metavar='LR',
-                        help='learning rate (default: 0.00025)')
-    parser.add_argument('--clip-norm', type=int, default=10,
+    parser.add_argument('--lr', type=float, default=0.000005, metavar='LR',
+                        help='learning rate (default: 0.000005)')
+    parser.add_argument('--clip-norm', type=int, default=50,
                         help='max norm for gradients; set to 0 to disable gradient clipping (default: 10)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
@@ -386,15 +386,15 @@ if __name__ == '__main__':
                         help='base directory of CLEVR dataset')
     parser.add_argument('--model', type=str, default='original-fp',
                         help='which model is used to train the network')
-    parser.add_argument('--invert-questions', action='store_true', default=False,
+    parser.add_argument('--no-invert-questions', action='store_true', default=False,
                         help='invert the question word indexes for LSTM processing')
     parser.add_argument('--test', action='store_true', default=False,
                         help='perform only a single test. To use with --resume')
     parser.add_argument('--conv-transfer-learn', type=str,
                     help='use convolutional layer from another training')
-    parser.add_argument('--lr-max', type=float, default=-1,
+    parser.add_argument('--lr-max', type=float, default=0.0005,
                         help='max learning rate')
-    parser.add_argument('--lr-gamma', type=float, default=1, 
+    parser.add_argument('--lr-gamma', type=float, default=2, 
                         help='increasing rate for the learning rate. 1 to keep LR constant.')
     parser.add_argument('--lr-step', type=int, default=20,
                         help='number of epochs before lr update')
@@ -411,4 +411,5 @@ if __name__ == '__main__':
     parser.add_argument('--question-injection', type=int, default=-1, 
                         help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value)')
     args = parser.parse_args()
+    args.invert_questions = not args.no_invert_questions
     main(args)
