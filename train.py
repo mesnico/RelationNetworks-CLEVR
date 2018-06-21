@@ -212,12 +212,11 @@ def main(args):
     print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
     args.model_dirs = './model_{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
-                      'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}_fc1{}_fc2{}'
+                      'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}'
     args.model_dirs = args.model_dirs.format(
                         args.model, hyp['dropout'], args.batch_size, args.bs_step, args.bs_gamma, 
                         args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
-                        args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'],
-                        hyp['f_fc1'], hyp['f_fc2'])
+                        args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'])
     if not os.path.exists(args.model_dirs):
         os.makedirs(args.model_dirs)
     #create a file in this folder containing the overall configuration

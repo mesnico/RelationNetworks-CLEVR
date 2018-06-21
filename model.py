@@ -62,15 +62,6 @@ class QuestionEmbedModel(nn.Module):
 class RelationalLayerBase(nn.Module):
     def __init__(self, in_size, out_size, qst_size, hyp):
         super().__init__()
-
-        if hyp["question_injection_position"] >= len(hyp["g_layers"]):
-            f_fc1_insize = hyp["g_layers"][-1] + qst_size
-        else:
-            f_fc1_insize = hyp["g_layers"][-1]
-
-        self.f_fc1 = nn.Linear(f_fc1_insize, hyp["f_fc1"])
-        self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
-        self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
     
         self.dropout = nn.Dropout(p=hyp["dropout"])
         
@@ -90,14 +81,16 @@ class RelationalLayer(RelationalLayerBase):
         super().__init__(in_size, out_size, qst_size, hyp)
 
         self.quest_inject_position = hyp["question_injection_position"]
+        self.aggreg_position = hyp["aggregation_position"]
+        self.dropout_position = hyp["dropout_position"]
         self.in_size = in_size
 
-	    #create all g layers
+        #create all g layers
         self.g_layers = []
         self.g_layers_size = hyp["g_layers"]
         for idx,g_layer_size in enumerate(hyp["g_layers"]):
             in_s = in_size if idx==0 else hyp["g_layers"][idx-1]
-            out_s = g_layer_size
+            out_s = g_layer_size                
             if idx==self.quest_inject_position:
                 #create the h layer. Now, for better code organization, it is part of the g layers pool. 
                 l = nn.Linear(in_s+qst_size, out_s)
@@ -114,12 +107,6 @@ class RelationalLayer(RelationalLayerBase):
         """g"""
         b, d, k = x.size()
         qst_size = qst.size()[1]
-
-        # add question everywhere
-        unsq_qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
-        unsq_qst = unsq_qst.repeat(1, d, 1)                       # (B x 64 x 128)
-        unsq_qst = torch.unsqueeze(unsq_qst, 2)                      # (B x 64 x 1 x 128)
-        unsq_qst = unsq_qst.repeat(1,1,d,1)
         
         # cast all pairs against each other
         x_i = torch.unsqueeze(x, 1)                   # (B x 1 x 64 x 26)
@@ -136,42 +123,42 @@ class RelationalLayer(RelationalLayerBase):
 
         #create g and inject the question at the position pointed by quest_inject_position.
         for idx, (g_layer, g_layer_size) in enumerate(zip(self.g_layers, self.g_layers_size)):
+            in_size = self.in_size if idx==0 else self.g_layers_size[idx-1]
+
+            if idx==self.aggreg_position:
+                x_ = x_.view(b,-1,in_size) #TODO: check this hidden dimension size with pdb
+                x_ = x_.sum(1)
+
             if idx==self.quest_inject_position:
-                in_size = self.in_size if idx==0 else self.g_layers_size[idx-1]
+                x_img = x_.view(b,-1,in_size)
+                n_couples = x_img.size()[1]
+
+                # add question everywhere
+                unsq_qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
+                unsq_qst = unsq_qst.repeat(1, n_couples**2, 1)          # (B x 64*64 x 128)
+                #unsq_qst = torch.unsqueeze(unsq_qst, 2)                 # (B x 64 x 1 x 128)
+                #unsq_qst = unsq_qst.repeat(1,1,n_couples,1)
 
                 # questions inserted
-                x_img = x_.view(b,d,d,in_size)
-                x_concat = torch.cat([x_img,unsq_qst],3) #(B x 64 x 64 x 128+256)
-                x_ = x_concat.view(b*(d**2),in_size+self.qst_size)
+                
+                x_concat = torch.cat([x_img,unsq_qst],2) #(B x 64*64 x 128+256)
+                x_ = x_concat.view(b*(n_couples**2),in_size+self.qst_size)
                 
                 x_ = g_layer(x_)
-                x_ = F.relu(x_)
 
                 if self.extraction:
                     return None                
             else:
                 x_ = g_layer(x_)
+
+            if idx==self.dropout_position:
+                x_ = self.dropout(x_)
+
+            #apply ReLU after every layer except the last
+            if idx!=len(self.g_layers_size)-1:
                 x_ = F.relu(x_)
-        
-        # reshape again and sum
-        x_g = x_.view(b, d**2, self.g_layers_size[-1])
-        x_g = x_g.sum(1).squeeze(1)
 
-        if self.quest_inject_position >= len(self.g_layers):        
-            #insert questions immediately after aggregating
-            x_g = torch.cat([x_g,qst],1) #(B x 128+256)
-        
-        """f"""
-        x_f = self.f_fc1(x_g)
-        x_f = F.relu(x_f)
-        if self.extraction:
-            return None    
-        x_f = self.f_fc2(x_f)
-        x_f = self.dropout(x_f)
-        x_f = F.relu(x_f)
-        x_f = self.f_fc3(x_f)
-
-        return F.log_softmax(x_f, dim=1)
+        return F.log_softmax(x_, dim=1)
 
 class RN(nn.Module):
     def __init__(self, args, hyp, extraction=False):
