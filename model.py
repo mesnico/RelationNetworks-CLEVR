@@ -8,6 +8,12 @@ import math
 
 import pdb
 
+DEBUG = False
+def debug_print(msg):
+    if DEBUG:
+        print(msg)
+
+
 class ConvInputModel(nn.Module):
     def __init__(self):
         super(ConvInputModel, self).__init__()
@@ -62,8 +68,6 @@ class QuestionEmbedModel(nn.Module):
 class RelationalLayerBase(nn.Module):
     def __init__(self, in_size, out_size, qst_size, hyp):
         super().__init__()
-    
-        self.dropout = nn.Dropout(p=hyp["dropout"])
         
         self.on_gpu = False
         self.hyp = hyp
@@ -82,7 +86,9 @@ class RelationalLayer(RelationalLayerBase):
 
         self.quest_inject_position = hyp["question_injection_position"]
         self.aggreg_position = hyp["aggregation_position"]
-        self.dropout_position = hyp["dropout_position"]
+        #dropouts
+        self.dropouts = {int(k):nn.Dropout(p=v) for k,v in hyp["dropouts"].items()}
+        
         self.in_size = in_size
 
         #create all g layers
@@ -126,10 +132,12 @@ class RelationalLayer(RelationalLayerBase):
             in_size = self.in_size if idx==0 else self.g_layers_size[idx-1]
 
             if idx==self.aggreg_position:
-                x_ = x_.view(b,-1,in_size) #TODO: check this hidden dimension size with pdb
+                debug_print('{} - Aggregation'.format(idx))
+                x_ = x_.view(b,-1,in_size)
                 x_ = x_.sum(1)
 
             if idx==self.quest_inject_position:
+                debug_print('{} - Question injection'.format(idx))
                 x_img = x_.view(b,-1,in_size)
                 n_couples = x_img.size()[1]
 
@@ -151,12 +159,19 @@ class RelationalLayer(RelationalLayerBase):
             else:
                 x_ = g_layer(x_)
 
-            if idx==self.dropout_position:
-                x_ = self.dropout(x_)
-
+            debug_print('{} - Layer. Output dim: {}'.format(idx, x_.size()))
+            
+            if idx in self.dropouts:
+                debug_print('{} - Dropout p={}'.format(idx, self.dropouts[idx].p))
+                x_ = self.dropouts[idx](x_)
+                
             #apply ReLU after every layer except the last
             if idx!=len(self.g_layers_size)-1:
+                debug_print('{} - ReLU'.format(idx))
                 x_ = F.relu(x_)
+
+        if DEBUG:
+            pdb.set_trace()        
 
         return F.log_softmax(x_, dim=1)
 

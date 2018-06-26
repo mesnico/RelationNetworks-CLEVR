@@ -203,9 +203,7 @@ def main(args):
     #load hyperparameters from configuration file
     with open(args.config) as config_file: 
         hyp = json.load(config_file)['hyperparams'][args.model]
-    #override configuration dropout
-    if args.dropout > 0:
-        hyp['dropout'] = args.dropout
+
     if args.question_injection >= 0:
         hyp['question_injection_position'] = args.question_injection
 
@@ -214,7 +212,7 @@ def main(args):
     args.model_dirs = './model_{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
                       'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}'
     args.model_dirs = args.model_dirs.format(
-                        args.model, hyp['dropout'], args.batch_size, args.bs_step, args.bs_gamma, 
+                        args.model, hyp['dropouts'], args.batch_size, args.bs_step, args.bs_gamma, 
                         args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
                         args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'])
     if not os.path.exists(args.model_dirs):
@@ -403,8 +401,6 @@ if __name__ == '__main__':
                         help='increasing rate for the batch size. 1 to keep batch-size constant.')
     parser.add_argument('--bs-step', type=int, default=20, 
                         help='number of epochs before batch-size update')
-    parser.add_argument('--dropout', type=float, default=-1,
-                        help='dropout rate. -1 to use value from configuration')
     parser.add_argument('--config', type=str, default='config.json',
                         help='configuration file for hyperparameters loading')
     parser.add_argument('--question-injection', type=int, default=-1, 

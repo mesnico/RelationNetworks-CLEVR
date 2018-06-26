@@ -34,61 +34,56 @@
 			"g_layers": [512,2048,512,512,1024,1024],
 			"question_injection_position": 4,
 			"aggregation_position": 2,
-			"dropout_position": 4,
+			"dropouts": {"0":0.3, "4":0.3}, 
 	            
-			"dropout": 0.3,
 			"lstm_hidden": 256,
 			"lstm_word_emb": 32,
 			"rl_in_size": 14
 	        },
-	"original-sd-innetaggr-5":
+	"original-sd-innetaggr-9":
 		{
 			"state_description": true,
-			"g_layers": [512,1024,512,512,1024,1024],
+			"g_layers": [512,2048,512,512,1024,1024],
 			"question_injection_position": 4,
 			"aggregation_position": 2,
-			"dropout_position": 4,
+			"dropouts": {"0":0.2, "4":0.3}, 
 	            
-			"dropout": 0.3,
 			"lstm_hidden": 256,
 			"lstm_word_emb": 32,
 			"rl_in_size": 14
 	        },
-	"original-sd-innetaggr-6":
+	"original-sd-innetaggr-10":
 		{
 			"state_description": true,
-			"g_layers": [512,2048,512,512,512,1024],
+			"g_layers": [512,2048,2048,512,1024,1024],
 			"question_injection_position": 4,
 			"aggregation_position": 2,
-			"dropout_position": 4,
+			"dropouts": {"4":0.3}, 
 	            
-			"dropout": 0.3,
 			"lstm_hidden": 256,
 			"lstm_word_emb": 32,
 			"rl_in_size": 14
 	        },
-	"original-sd-innetaggr-7":
+	"original-sd-innetaggr-11":
 		{
 			"state_description": true,
-			"g_layers": [512,2048,2048,512,512,1024],
-			"question_injection_position": 4,
-			"aggregation_position": 2,
-			"dropout_position": 4,
+			"g_layers": [512,512,2048,512,512,512,512,512,1024],
+			"question_injection_position": 6,
+			"aggregation_position": 3,
+			"dropouts": {"1":0.2, "7":0.3}, 
 	            
-			"dropout": 0.3,
 			"lstm_hidden": 256,
 			"lstm_word_emb": 32,
 			"rl_in_size": 14
 	        },
-	"original-sd-innetaggr-8":
+	"original-sd-innetaggr-12":
 		{
 			"state_description": true,
-			"g_layers": [512,2048,512,512,512,1024],
-			"question_injection_position": 4,
-			"aggregation_position": 2,
-			"dropout_position": 4,
+			"g_layers": [512,512,2048,512,512,512,512,512,1024],
+			"question_injection_position": 6,
+			"aggregation_position": 3,
+			"dropouts": {"1":0.2, "7":0.05}, 
 	            
-			"dropout": 0.1,
 			"lstm_hidden": 256,
 			"lstm_word_emb": 32,
 			"rl_in_size": 14
