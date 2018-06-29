@@ -46,7 +46,7 @@ def extract_features_rl(data, quest_inject_index, extr_layer_idx, lstm_emb_size,
         x_ = z.view(args.batch_size, d4_combinations, z.size()[1])
         if extr_layer_idx == quest_inject_index:
             x_ = x_[:,:,:z.size()[1]-lstm_emb_size]
-        x_ = F.normalize(x_, p=2, dim=2)
+        #x_ = F.normalize(x_, p=2, dim=2)
         maxf = x_.max(1)[0].squeeze()
         avgf = x_.mean(1).squeeze()
 
@@ -56,13 +56,18 @@ def extract_features_rl(data, quest_inject_index, extr_layer_idx, lstm_emb_size,
 
     model.eval()
 
-    lay = 'g_layers'
+    lay = 'g_layers' if extr_layer_idx<len(model._modules.get('rl')._modules.get('g_layers')) else 'f_fc1'
     progress_bar = tqdm(data)
-    progress_bar.set_description('FEATURES EXTRACTION from {}, input of g_fc{} layer'.format(lay, extr_layer_idx+1))
     max_features = []
     avg_features = []
 
-    extraction_layer = model._modules.get('rl')._modules.get(lay)[extr_layer_idx]
+    if lay == 'g_layers':
+        progress_bar.set_description('FEATURES EXTRACTION from {}, input of g_fc{} layer'.format(lay, extr_layer_idx+1))
+        extraction_layer = model._modules.get('rl')._modules.get(lay)[extr_layer_idx]
+    else:
+        progress_bar.set_description('FEATURES EXTRACTION from input of {}'.format(lay))
+        extraction_layer = model._modules.get('rl')._modules.get(lay)
+    
     h = extraction_layer.register_forward_hook(hook_function)
     for batch_idx, sample_batched in enumerate(progress_bar):
         qst = torch.LongTensor(len(sample_batched), 1).zero_()
