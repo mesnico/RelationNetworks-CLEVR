@@ -58,7 +58,7 @@ def extract_features_rl(data, quest_inject_index, extr_layer_idx, lstm_emb_size,
 
     lay = 'g_layers'
     progress_bar = tqdm(data)
-    progress_bar.set_description('FEATURES EXTRACTION from {}, input of g_fc{} layer'.format(lay, extr_layer_idx+1))
+    progress_bar.set_description('FEATURES EXTRACTION from {}, {}-set, input of g_fc{} layer'.format(lay, args.set, extr_layer_idx+1))
     max_features = []
     avg_features = []
 
@@ -85,24 +85,24 @@ def extract_features_rl(data, quest_inject_index, extr_layer_idx, lstm_emb_size,
     pickle.dump(max_features, max_features_file)
     pickle.dump(avg_features, avg_features_file)
 
-def reload_loaders(clevr_dataset_test, test_bs, state_description = False): #TODO here: add custom collect function
+def reload_loaders(clevr_dataset, bs, state_description = False): #TODO here: add custom collect function
     if not state_description:
 
         # Initialize Clevr dataset loader
-        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
+        clevr_loader = DataLoader(clevr_dataset, batch_size=bs,
                                        shuffle=False, num_workers=8, drop_last=True)
     else:
         # Initialize Clevr dataset loader
-        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
+        clevr_loader = DataLoader(clevr_dataset, batch_size=bs,
                                        shuffle=False, num_workers=1, collate_fn=utils.collate_samples_images_state_description, drop_last=True)
-    return clevr_test_loader
+    return clevr_loader
 
-def initialize_dataset(clevr_dir, state_description=True):
+def initialize_dataset(clevr_dir, train=False, state_description=True):
     if not state_description:
         test_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                           transforms.ToTensor()])
                                           
-        clevr_dataset_test = ClevrDatasetImages(clevr_dir, False, test_transforms)
+        clevr_dataset_test = ClevrDatasetImages(clevr_dir, train, test_transforms)
         
     else:
         clevr_dataset_test = ClevrDatasetImagesStateDescription(clevr_dir, False)
@@ -125,15 +125,15 @@ def main(args):
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
     # Initialize CLEVR Loader
-    clevr_dataset_test  = initialize_dataset(args.clevr_dir, hyp['state_description'])
+    clevr_dataset_test  = initialize_dataset(args.clevr_dir, True if args.set=='train' else False, hyp['state_description'])
     clevr_feat_extraction_loader = reload_loaders(clevr_dataset_test, args.batch_size, hyp['state_description'])
 
     args.features_dirs = './features'
     if not os.path.exists(args.features_dirs):
         os.makedirs(args.features_dirs)
 
-    max_features = os.path.join(args.features_dirs, 'gfc{}_max_features.pickle'.format(args.extr_layer_idx))
-    avg_features = os.path.join(args.features_dirs, 'gfc{}_avg_features.pickle'.format(args.extr_layer_idx))
+    max_features = os.path.join(args.features_dirs, '{}_gfc{}_max_features.pickle'.format(args.set,args.extr_layer_idx))
+    avg_features = os.path.join(args.features_dirs, '{}_gfc{}_avg_features.pickle'.format(args.set,args.extr_layer_idx))
 
     print('Building word dictionaries from all the words in the dataset...')
     dictionaries = utils.build_dictionaries(args.clevr_dir)
@@ -180,6 +180,8 @@ if __name__ == '__main__':
                         help='input batch size for training (default: 64)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
+    parser.add_argument('--set',type=str, choices=['train','test'], default='test',
+                        help='Extract features from training or test set')
     parser.add_argument('--config', type=str, default='config.json',
                         help='configuration file for hyperparameters loading')
     parser.add_argument('--question-injection', type=int, default=-1, 

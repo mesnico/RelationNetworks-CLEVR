@@ -163,8 +163,8 @@ class ClevrDatasetImages(Dataset):
         :param mode: Specifies if we want to read in val, train or test folder
         :param transform: Optional transform to be applied on a sample.
         """
-        mode = 'train' if train else 'val'
-        self.img_dir = os.path.join(clevr_dir, 'images', mode)
+        self.mode = 'train' if train else 'val'
+        self.img_dir = os.path.join(clevr_dir, 'images', self.mode)
         self.transform = transform
 
     def __len__(self):
@@ -172,7 +172,7 @@ class ClevrDatasetImages(Dataset):
 
     def __getitem__(self, idx):
         padded_index = str(idx).rjust(6, '0')
-        img_filename = os.path.join(self.img_dir, 'CLEVR_val_{}.png'.format(padded_index))
+        img_filename = os.path.join(self.img_dir, 'CLEVR_{}_{}.png'.format(self.mode,padded_index))
         image = Image.open(img_filename).convert('RGB')
 
         if self.transform:
