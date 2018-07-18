@@ -18,6 +18,7 @@ from torch.nn.utils import clip_grad_norm
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm, trange
+from early_stop import EarlyStopping
 
 import utils
 import math
@@ -321,6 +322,7 @@ def main(args):
         candidate_lr = args.lr * args.lr_gamma ** (start_epoch-1 // args.lr_step)
         lr = candidate_lr if candidate_lr <= args.lr_max else args.lr_max
 
+        es = EarlyStopping()
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, weight_decay=1e-4)
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
@@ -351,7 +353,12 @@ def main(args):
 
             # TEST
             progress_bar.set_description('TEST')
-            test(clevr_test_loader, model, epoch, dictionaries, args)
+            avg_loss = test(clevr_test_loader, model, epoch, dictionaries, args)
+
+            #check for early-stop
+            if es.step(avg_loss):
+                print('Early-stopping at epoch {}'.format(epoch))
+                break
 
             # SAVE MODEL
             filename = 'RN_epoch_{:02d}.pth'.format(epoch)
