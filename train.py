@@ -259,16 +259,19 @@ def main(args):
         model.cuda()
 
     start_epoch = 1
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-4)
+
     if args.resume:
         filename = args.resume
         if os.path.isfile(filename):
             print('==> loading checkpoint {}'.format(filename))
-            checkpoint = torch.load(filename)
+            checkpoint, optimizer_chkp = torch.load(filename)
 
             #removes 'module' from dict entries, pytorch bug #3805
             checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
             model.load_state_dict(checkpoint)
+            optimizer.load_state_dict(optimizer_chkp)
             print('==> loaded checkpoint {}'.format(filename))
             start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
 
@@ -318,12 +321,8 @@ def main(args):
         bs = args.batch_size
 
         # perform a full training
-        #TODO: find a better solution for general lr scheduling policies
-        candidate_lr = args.lr * args.lr_gamma ** (start_epoch-1 // args.lr_step)
-        lr = candidate_lr if candidate_lr <= args.lr_max else args.lr_max
 
         es = EarlyStopping()
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, weight_decay=1e-4)
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
         scheduler.last_epoch = start_epoch
@@ -362,7 +361,7 @@ def main(args):
 
             # SAVE MODEL
             filename = 'RN_epoch_{:02d}.pth'.format(epoch)
-            torch.save(model.state_dict(), os.path.join(args.model_dirs, filename))
+            torch.save([model.state_dict(), optimizer.state_dict()], os.path.join(args.model_dirs, filename))
 
 
 if __name__ == '__main__':
