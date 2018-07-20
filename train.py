@@ -25,12 +25,18 @@ import math
 from clevr_dataset_connector import ClevrDataset, ClevrDatasetStateDescription
 from model import RN
 
+import ray
+from ray import tune
+from ray.tune import Trainable, TrainingResult, register_trainable, run_experiments, Experiment
+from ray.tune.hyperband import HyperBandScheduler
+
 import pdb
 
 def train(data, model, optimizer, epoch, args):
     model.train()
 
     avg_loss = 0.0
+    global_avg_loss = 0.0
     n_batches = 0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
@@ -51,6 +57,7 @@ def train(data, model, optimizer, epoch, args):
         # Show progress
         progress_bar.set_postfix(dict(loss=loss.data[0]))
         avg_loss += loss.data[0]
+        global_avg_loss += loss.data[0]
         n_batches += 1
 
         if batch_idx % args.log_interval == 0:
@@ -63,6 +70,8 @@ def train(data, model, optimizer, epoch, args):
             avg_loss = 0.0
             n_batches = 0
 
+    global_avg_loss /= len(data)
+    return global_avg_loss
 
 def test(data, model, epoch, dictionaries, args):
     model.eval()
@@ -157,7 +166,7 @@ def test(data, model, epoch, dictionaries, args):
         'global_accuracy':accuracy
     }
     pickle.dump(dump_object, open(filename,'wb'))
-    return avg_loss
+    return avg_loss, accuracy
 
 def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, state_description = False):
     if not state_description:
@@ -197,36 +206,34 @@ def initialize_dataset(clevr_dir, dictionaries, state_description=True):
     
     return clevr_dataset_train, clevr_dataset_test 
         
-    
-
 
 def main(args):
     #load hyperparameters from configuration file
     with open(args.config) as config_file: 
         hyp = json.load(config_file)['hyperparams'][args.model]
 
-    if args.question_injection >= 0:
-        hyp['question_injection_position'] = args.question_injection
+    #if args.question_injection >= 0:
+    #    hyp['question_injection_position'] = args.question_injection
 
-    print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
+    #print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
-    args.model_dirs = './model_{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
-                      'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}'
-    args.model_dirs = args.model_dirs.format(
-                        args.model, hyp['dropouts'], args.batch_size, args.bs_step, args.bs_gamma, 
-                        args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
-                        args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'])
-    if not os.path.exists(args.model_dirs):
-        os.makedirs(args.model_dirs)
+    #args.model_dirs = './model_{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
+    #                  'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}'
+    #args.model_dirs = args.model_dirs.format(
+    #                    args.model, hyp['dropouts'], args.batch_size, args.bs_step, args.bs_gamma, 
+    #                    args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
+    #                    args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'])
+    #if not os.path.exists(args.model_dirs):
+    #    os.makedirs(args.model_dirs)
     #create a file in this folder containing the overall configuration
-    args_str = str(args)
-    hyp_str = str(hyp)
-    all_configuration = args_str+'\n\n'+hyp_str
-    filename = os.path.join(args.model_dirs,'config.txt')
-    with open(filename,'w') as config_file:
-        config_file.write(all_configuration)
+    #args_str = str(args)
+    #hyp_str = str(hyp)
+    #all_configuration = args_str+'\n\n'+hyp_str
+    #filename = os.path.join(args.model_dirs,'config.txt')
+    #with open(filename,'w') as config_file:
+    #    config_file.write(all_configuration)
 
-    args.features_dirs = './features'
+    #args.features_dirs = './features'
     args.test_results_dir = './test_results'
     if not os.path.exists(args.test_results_dir):
         os.makedirs(args.test_results_dir)
@@ -242,38 +249,103 @@ def main(args):
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
-    clevr_dataset_train, clevr_dataset_test  = initialize_dataset(args.clevr_dir, dictionaries, hyp['state_description'])
+    clevr_dataset_train, clevr_dataset_test = initialize_dataset(args.clevr_dir, dictionaries, hyp['state_description'])
     print('CLEVR dataset initialized!')
 
-    # Build the model
-    args.qdict_size = len(dictionaries[0])
-    args.adict_size = len(dictionaries[1])
+    class RNTrain(Trainable):
+        def _setup(self):
+            print('Starting setup with configs: {}'.format(self.config))
+            self.start_epoch = 1
+            self.epoch = self.start_epoch
 
-    model = RN(args, hyp)
+            # Build the model
+            args.qdict_size = len(dictionaries[0])
+            args.adict_size = len(dictionaries[1])
 
-    if torch.cuda.device_count() > 1 and args.cuda:
-        model = torch.nn.DataParallel(model)
-        model.module.cuda()  # call cuda() overridden method
+            self.model = RN(args, self.config)
 
-    if args.cuda:
-        model.cuda()
+            if torch.cuda.device_count() > 1 and args.cuda:
+                self.model = torch.nn.DataParallel(model)
+                self.model.module.cuda()  # call cuda() overridden method
 
-    start_epoch = 1
-    if args.resume:
-        filename = args.resume
-        if os.path.isfile(filename):
-            print('==> loading checkpoint {}'.format(filename))
+            elif torch.cuda.device_count() == 1 and args.cuda:
+                self.model.cuda()
+
+            else:
+                print('Not using CUDA')
+
+            # perform a full training
+            #TODO: find a better solution for general lr scheduling policies
+            candidate_lr = args.lr * args.lr_gamma ** (self.start_epoch-1 // args.lr_step)
+            lr = candidate_lr if candidate_lr <= args.lr_max else args.lr_max
+
+            self.es = EarlyStopping()
+            self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()), lr=lr, weight_decay=1e-4)
+            # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
+            self.scheduler = lr_scheduler.StepLR(self.optimizer, args.lr_step, gamma=args.lr_gamma)
+            self.scheduler.last_epoch = self.start_epoch
+            print('Training ({} epochs) is starting...'.format(args.epochs))
+
+            self.done = False
+
+        def _train(self):
+            bs = args.batch_size
+            if(((args.bs_max > 0 and bs < args.bs_max) or args.bs_max < 0 ) and (self.epoch % args.bs_step == 0 or self.epoch == self.start_epoch)):
+                bs = math.floor(args.batch_size * (args.bs_gamma ** (self.epoch // args.bs_step)))
+                if bs > args.bs_max and args.bs_max > 0:
+                    bs = args.bs_max
+                clevr_train_loader, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, bs, args.test_batch_size, hyp['state_description'])
+
+                #restart optimizer in order to restart learning rate scheduler
+                #for param_group in optimizer.param_groups:
+                #    param_group['lr'] = args.lr
+                #scheduler = lr_scheduler.CosineAnnealingLR(optimizer, step, min_lr)
+                #print('Dataset reinitialized with batch size {}'.format(bs))
+            
+            if((args.lr_max > 0 and self.scheduler.get_lr()[0]<args.lr_max) or args.lr_max < 0):
+                self.scheduler.step()
+                    
+            print('Current learning rate: {}'.format(self.optimizer.param_groups[0]['lr']))
+                
+            # TRAIN
+            #progress_bar.set_description('TRAIN')
+            avg_train_loss = train(clevr_train_loader, self.model, self.optimizer, self.epoch, args)
+
+            # TEST
+            #progress_bar.set_description('TEST')
+            _, accuracy = test(clevr_test_loader, self.model, self.epoch, dictionaries, args)
+
+            #check for early-stop
+            if self.es.step(avg_loss):
+                #print('Early-stopping at epoch {}'.format(epoch))
+                self.done = True
+
+            now = self.epoch
+            self.epoch += 1
+
+            return TrainingResult(
+                timesteps_this_iter=1, timesteps_total=now, done=self.done, mean_validation_accuracy=accuracy, mean_loss=avg_train_loss)
+
+        def _save(self, checkpoint_dir):
+            filename = 'RN_epoch_{:02d}.pth'.format(self.epoch)
+            checkpoint_path = os.path.join(checkpoint_dir, filename)
+            torch.save(self.model.state_dict(), checkpoint_path)
+            return checkpoint_path
+
+        def _restore(self, filename):
+            #print('==> loading checkpoint {}'.format(filename))
             checkpoint = torch.load(filename)
 
             #removes 'module' from dict entries, pytorch bug #3805
             checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
-            model.load_state_dict(checkpoint)
-            print('==> loaded checkpoint {}'.format(filename))
-            start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
-
+            self.model.load_state_dict(checkpoint)
+            #print('==> loaded checkpoint {}'.format(filename))
+            self.start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
+            self.scheduler.last_epoch = self.start_epoch
     
-    if args.conv_transfer_learn:
+    
+    '''if args.conv_transfer_learn:
         if os.path.isfile(args.conv_transfer_learn):
             # TODO: there may be problems caused by pytorch issue #3805 if using DataParallel
 
@@ -306,63 +378,57 @@ def main(args):
 
             print("==> conv layer loaded!")
         else:
-            print('Cannot load file {}'.format(args.conv_transfer_learn))
+            print('Cannot load file {}'.format(args.conv_transfer_learn))'''
 
-    progress_bar = trange(start_epoch, args.epochs + 1)
+    #progress_bar = trange(start_epoch, args.epochs + 1)
     if args.test:
         # perform a single test
         print('Testing epoch {}'.format(start_epoch))
         _, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, args.batch_size, args.test_batch_size, hyp['state_description'])
         test(clevr_test_loader, model, start_epoch, dictionaries, args)
     else:
-        bs = args.batch_size
-
-        # perform a full training
-        #TODO: find a better solution for general lr scheduling policies
-        candidate_lr = args.lr * args.lr_gamma ** (start_epoch-1 // args.lr_step)
-        lr = candidate_lr if candidate_lr <= args.lr_max else args.lr_max
-
-        es = EarlyStopping()
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, weight_decay=1e-4)
-        # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
-        scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
-        scheduler.last_epoch = start_epoch
-        print('Training ({} epochs) is starting...'.format(args.epochs))
-        for epoch in progress_bar:
+        #TODO: call method from RNTrain class if not using Ray
+        #for epoch in progress_bar:
             
-            if(((args.bs_max > 0 and bs < args.bs_max) or args.bs_max < 0 ) and (epoch % args.bs_step == 0 or epoch == start_epoch)):
-                bs = math.floor(args.batch_size * (args.bs_gamma ** (epoch // args.bs_step)))
-                if bs > args.bs_max and args.bs_max > 0:
-                    bs = args.bs_max
-                clevr_train_loader, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, bs, args.test_batch_size, hyp['state_description'])
+        #Using ray
+        ray.init()
 
-                #restart optimizer in order to restart learning rate scheduler
-                #for param_group in optimizer.param_groups:
-                #    param_group['lr'] = args.lr
-                #scheduler = lr_scheduler.CosineAnnealingLR(optimizer, step, min_lr)
-                print('Dataset reinitialized with batch size {}'.format(bs))
-            
-            if((args.lr_max > 0 and scheduler.get_lr()[0]<args.lr_max) or args.lr_max < 0):
-                scheduler.step()
-                    
-            print('Current learning rate: {}'.format(optimizer.param_groups[0]['lr']))
-                
-            # TRAIN
-            progress_bar.set_description('TRAIN')
-            train(clevr_train_loader, model, optimizer, epoch, args)
+        register_trainable("rn_train", RNTrain)
 
-            # TEST
-            progress_bar.set_description('TEST')
-            avg_loss = test(clevr_test_loader, model, epoch, dictionaries, args)
+        # Hyperband early stopping
+        hyperband = HyperBandScheduler(
+            time_attr="timesteps_total",
+            reward_attr="mean_validation_accuracy",
+            max_t=250)
 
-            #check for early-stop
-            if es.step(avg_loss):
-                print('Early-stopping at epoch {}'.format(epoch))
-                break
+        exp = Experiment(
+            name="rn_hyperband",
+            run="rn_train",
+            trial_resources={ "cpu": 8, "gpu": 1},
+            repeat=1,
+            config={
+                "state_description": True,
+                "g_layers": [
+                    tune.grid_search([128, 256, 1024]),
+                    tune.grid_search([128, 256, 1024]),
+                    tune.grid_search([128, 256, 1024]),
+                    tune.grid_search([128, 256, 1024]),
+                ],
+                "question_injection_position": 4,   #TODO: randomize those two
+                "aggregation_position": 2,
+                "dropouts": {
+                    "0":lambda spec: np.random.uniform(),
+                    "4":lambda spec: np.random.uniform(),
+                },
+	                
+                "lstm_hidden": tune.grid_search([128, 256]),
+                "lstm_word_emb": 32,
+                "rl_in_size": 14
+            })
 
-            # SAVE MODEL
-            filename = 'RN_epoch_{:02d}.pth'.format(epoch)
-            torch.save(model.state_dict(), os.path.join(args.model_dirs, filename))
+        run_experiments(exp, scheduler=hyperband)
+
+
 
 
 if __name__ == '__main__':
