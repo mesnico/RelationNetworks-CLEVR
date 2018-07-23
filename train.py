@@ -27,6 +27,8 @@ from model import RN
 
 import pdb
 
+ALL_IN_MEMORY_CACHE = False
+
 def train(data, model, optimizer, epoch, args):
     model.train()
 
@@ -188,12 +190,12 @@ def initialize_dataset(clevr_dir, dictionaries, state_description=True):
         test_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                           transforms.ToTensor()])
                                           
-        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms)
-        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms)
+        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms, ALL_IN_MEMORY_CACHE)
+        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms, ALL_IN_MEMORY_CACHE)
         
     else:
-        clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries)
-        clevr_dataset_test = ClevrDatasetStateDescription(clevr_dir, False, dictionaries)
+        clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries, ALL_IN_MEMORY_CACHE)
+        clevr_dataset_test = ClevrDatasetStateDescription(clevr_dir, False, dictionaries, ALL_IN_MEMORY_CACHE)
     
     return clevr_dataset_train, clevr_dataset_test 
         

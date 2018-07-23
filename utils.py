@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 import re
+import shelve
 
 import torch
 from tqdm import tqdm
@@ -148,3 +149,40 @@ def load_tensor_data(data_batch, cuda, invert_questions, volatile=False):
 
     label = (label - 1).squeeze(1)
     return img, qst, label
+
+class JsonCache:
+    def __init__(self, json_filename, what, all_in_memory=True, json_cook_function=None):
+        self.all_in_memory = all_in_memory
+        cached_filename = json_filename.replace('.json', '.pkl' if all_in_memory else '.db')
+        if os.path.exists(cached_filename) or os.path.exists(cached_filename+'.dat'):
+            print('==> using cached: {}'.format(cached_filename))
+            if all_in_memory:
+                with open(cached_filename, 'rb') as f:
+                    self.out = pickle.load(f)
+            else:
+                self.out = shelve.open(cached_filename)
+                
+        else:
+            with open(json_filename, 'r') as json_file:
+                loaded = json.load(json_file)[what]
+                if json_cook_function != None:
+                    loaded = json_cook_function(loaded)
+            if all_in_memory:
+                with open(cached_filename, 'wb') as f:
+                    pickle.dump(loaded, f)
+                    self.out = loaded
+            else:
+                with shelve.open(cached_filename) as s:
+                    for idx, x in enumerate(loaded):
+                        s[str(idx)] = x
+                self.out = shelve.open(cached_filename)
+
+    def __getitem__(self,idx):
+        if self.all_in_memory:
+            return self.out[idx]
+        else:
+            return self.out[str(idx)]
+
+    def __len__(self):
+        return len(self.out)
+        

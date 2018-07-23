@@ -105,16 +105,13 @@
         "ir-sd":
 	        {
                 "state_description": true,
-	            "g_layers": [512,512,512,512],
+	        "g_layers": [512,512,512,512,512,1024],
                 "question_injection_position": 2,
-	            
-	            "f_fc1": 512,
-	            "f_fc2": 1024,
-	            
-	            "dropout": 0.05,
-	            "lstm_hidden": 256,
-	            "lstm_word_emb": 32,
-	            "rl_in_size": 14
+		"aggregation_position": 4,
+	        "dropouts": {"4":0.05},
+	        "lstm_hidden": 256,
+	        "lstm_word_emb": 32,
+	        "rl_in_size": 14
 	        }
     }
 }
