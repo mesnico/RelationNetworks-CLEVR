@@ -10,7 +10,7 @@ import utils
 import torch
 
 class ClevrDataset(Dataset):
-    def __init__(self, clevr_dir, train, dictionaries, transform=None):
+    def __init__(self, clevr_dir, train, dictionaries, transform=None, all_in_memory=False):
         """
         Args:
             clevr_dir (string): Root directory of CLEVR dataset
@@ -25,16 +25,7 @@ class ClevrDataset(Dataset):
             quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_val_questions.json')
             self.img_dir = os.path.join(clevr_dir, 'images', 'val')
 
-        cached_questions = quest_json_filename.replace('.json', '.pkl')
-        if os.path.exists(cached_questions):
-            print('==> using cached questions: {}'.format(cached_questions))
-            with open(cached_questions, 'rb') as f:
-                self.questions = pickle.load(f)
-        else:
-            with open(quest_json_filename, 'r') as json_file:
-                self.questions = json.load(json_file)['questions']
-            with open(cached_questions, 'wb') as f:
-                pickle.dump(self.questions, f)
+        self.questions = utils.JsonCache(quest_json_filename, 'questions', all_in_memory)
                 
         self.clevr_dir = clevr_dir
         self.transform = transform
@@ -68,10 +59,10 @@ class ClevrDataset(Dataset):
         if self.transform:
             sample['image'] = self.transform(sample['image'])
         
-        return sample
+        return sample                
 
 class ClevrDatasetStateDescription(Dataset):
-    def __init__(self, clevr_dir, train, dictionaries):
+    def __init__(self, clevr_dir, train, dictionaries, all_in_memory=False):
         
         if train:
             quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
@@ -80,46 +71,29 @@ class ClevrDatasetStateDescription(Dataset):
             quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_val_questions.json')
             scene_json_filename = os.path.join(clevr_dir, 'scenes', 'CLEVR_val_scenes.json')
 
-        cached_questions = quest_json_filename.replace('.json', '.pkl')
-        cached_scenes = scene_json_filename.replace('.json', '.pkl')
-        if os.path.exists(cached_questions):
-            print('==> using cached questions: {}'.format(cached_questions))
-            with open(cached_questions, 'rb') as f:
-                self.questions = pickle.load(f)
-        else:
-            with open(quest_json_filename, 'r') as json_file:
-                self.questions = json.load(json_file)['questions']
-            with open(cached_questions, 'wb') as f:
-                pickle.dump(self.questions, f)
-                
-        if os.path.exists(cached_scenes):
-            print('==> using cached scenes: {}'.format(cached_scenes))
-            with open(cached_scenes, 'rb') as f:
-                self.objects = pickle.load(f)
-        else:
+        def get_objects(scenes):
             all_scene_objs = []
-            with open(scene_json_filename, 'r') as json_file:
-                scenes = json.load(json_file)['scenes']
-                print('caching all objects in all scenes...')
-                for s in scenes:
-                    objects = s['objects']
-                    objects_attr = []
-                    for obj in objects:
-                        attr_values = []
-                        for attr in sorted(obj):
-                            # convert object attributes in indexes
-                            if attr in utils.classes:
-                                attr_values.append(utils.classes[attr].index(obj[attr])+1)  #zero is reserved for padding
-                            else:
-                                '''if attr=='rotation':
-                                    attr_values.append(float(obj[attr]) / 360)'''
-                                if attr=='3d_coords':
-                                    attr_values.extend(obj[attr])
-                        objects_attr.append(attr_values)
-                    all_scene_objs.append(torch.FloatTensor(objects_attr))
-                self.objects = all_scene_objs
-            with open(cached_scenes, 'wb') as f:
-                pickle.dump(all_scene_objs, f)
+            print('caching all objects in all scenes...')
+            for s in scenes:
+                objects = s['objects']
+                objects_attr = []
+                for obj in objects:
+                    attr_values = []
+                    for attr in sorted(obj):
+                        # convert object attributes in indexes
+                        if attr in utils.classes:
+                            attr_values.append(utils.classes[attr].index(obj[attr])+1)  #zero is reserved for padding
+                        else:
+                            '''if attr=='rotation':
+                                attr_values.append(float(obj[attr]) / 360)'''
+                            if attr=='3d_coords':
+                                attr_values.extend(obj[attr])
+                    objects_attr.append(attr_values)
+                all_scene_objs.append(torch.FloatTensor(objects_attr))
+            return all_scene_objs
+
+        self.questions = utils.JsonCache(quest_json_filename, 'questions', all_in_memory)
+        self.objects = utils.JsonCache(scene_json_filename, 'scenes', all_in_memory, json_cook_function=get_objects)             
                 
         self.clevr_dir = clevr_dir
         self.dictionaries = dictionaries
