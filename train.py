@@ -29,6 +29,7 @@ import ray
 from ray import tune
 from ray.tune import Trainable, TrainingResult, register_trainable, run_experiments, Experiment
 from ray.tune.hyperband import HyperBandScheduler
+from ray.tune.util import pin_in_object_store, get_pinned_object
 
 import pdb
 
@@ -204,7 +205,105 @@ def initialize_dataset(clevr_dir, dictionaries, state_description=True):
         clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries)
         clevr_dataset_test = ClevrDatasetStateDescription(clevr_dir, False, dictionaries)
     
-    return clevr_dataset_train, clevr_dataset_test 
+    return clevr_dataset_train, clevr_dataset_test
+
+
+#mantains global ids about objects pinned in the store
+pinned_obj_dict = {}
+
+class RNTrain(Trainable):
+    def _setup(self):
+        print('Starting setup with configs: {}'.format(self.config))
+        self.start_epoch = 1
+        self.epoch = self.start_epoch
+
+        self.args = get_pinned_object(pinned_obj_dict['args'])
+        self.hyp = get_pinned_object(pinned_obj_dict['hyp'])
+        self.dictionaries = get_pinned_object(pinned_obj_dict['dictionaries'])
+        self.clevr_dataset_train = get_pinned_object(pinned_obj_dict['clevr_dataset_train'])
+        self.clevr_dataset_test = get_pinned_object(pinned_obj_dict['clevr_dataset_test'])
+
+        # Build the model
+        self.args.qdict_size = len(self.dictionaries[0])
+        self.args.adict_size = len(self.dictionaries[1])
+
+        self.model = RN(self.args, self.config)
+
+        if torch.cuda.device_count() > 1 and self.args.cuda:
+            self.model = torch.nn.DataParallel(model)
+            self.model.module.cuda()  # call cuda() overridden method
+
+        elif torch.cuda.device_count() == 1 and self.args.cuda:
+            self.model.cuda()
+
+        else:
+            print('Not using CUDA')
+
+        self.es = EarlyStopping()
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()), lr=args.lr, weight_decay=1e-4)
+        # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
+        self.scheduler = lr_scheduler.StepLR(self.optimizer, self.args.lr_step, gamma=args.lr_gamma)
+        self.scheduler.last_epoch = self.start_epoch
+        print('Training ({} epochs) is starting...'.format(self.args.epochs))
+
+        self.done = False
+
+    def _train(self):
+        bs = self.args.batch_size
+        if(((self.args.bs_max > 0 and bs < self.args.bs_max) or self.args.bs_max < 0 ) and (self.epoch % self.args.bs_step == 0 or self.epoch == self.start_epoch)):
+            bs = math.floor(self.args.batch_size * (self.args.bs_gamma ** (self.epoch // self.args.bs_step)))
+            if bs > self.args.bs_max and self.args.bs_max > 0:
+                bs = self.args.bs_max
+            clevr_train_loader, clevr_test_loader = reload_loaders(self.clevr_dataset_train, self.clevr_dataset_test, bs, args.test_batch_size, self.hyp['state_description'])
+
+            #restart optimizer in order to restart learning rate scheduler
+            #for param_group in optimizer.param_groups:
+            #    param_group['lr'] = args.lr
+            #scheduler = lr_scheduler.CosineAnnealingLR(optimizer, step, min_lr)
+            #print('Dataset reinitialized with batch size {}'.format(bs))
+        
+        if((self.args.lr_max > 0 and self.scheduler.get_lr()[0]<self.args.lr_max) or self.args.lr_max < 0):
+            self.scheduler.step()
+                
+        print('Current learning rate: {}'.format(self.optimizer.param_groups[0]['lr']))
+            
+        # TRAIN
+        #progress_bar.set_description('TRAIN')
+        avg_train_loss = train(clevr_train_loader, self.model, self.optimizer, self.epoch, self.args)
+
+        # TEST
+        #progress_bar.set_description('TEST')
+        _, accuracy = test(clevr_test_loader, self.model, self.epoch, self.dictionaries, self.args)
+
+        #check for early-stop
+        if self.es.step(avg_loss):
+            #print('Early-stopping at epoch {}'.format(epoch))
+            self.done = True
+
+        now = self.epoch
+        self.epoch += 1
+
+        return TrainingResult(
+            timesteps_this_iter=1, timesteps_total=now, done=self.done, mean_validation_accuracy=accuracy, mean_loss=avg_train_loss)
+
+    def _save(self, checkpoint_dir):
+        filename = 'RN_epoch_{:02d}.pth'.format(self.epoch)
+        checkpoint_path = os.path.join(checkpoint_dir, filename)
+        torch.save([self.model.state_dict(), self.optimizer.state_dict()], checkpoint_path)
+        return checkpoint_path
+
+    def _restore(self, filename):
+        #print('==> loading checkpoint {}'.format(filename))
+        checkpoint, optimizer_chkp = torch.load(filename)
+
+        #removes 'module' from dict entries, pytorch bug #3805
+        checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
+
+        self.model.load_state_dict(checkpoint)
+        self.optimizer.load_state_dict(optimizer_chkp)
+        #print('==> loaded checkpoint {}'.format(filename))
+        start_epoch = int(re.match(r'.*epoch_(\d+).pth', filename).groups()[0]) + 1
+        self.scheduler.last_epoch = self.start_epoch
         
 
 def main(args):
@@ -252,98 +351,15 @@ def main(args):
     clevr_dataset_train, clevr_dataset_test = initialize_dataset(args.clevr_dir, dictionaries, hyp['state_description'])
     print('CLEVR dataset initialized!')
 
-    class RNTrain(Trainable):
-        def _setup(self):
-            print('Starting setup with configs: {}'.format(self.config))
-            self.start_epoch = 1
-            self.epoch = self.start_epoch
+    ray.init()
 
-            # Build the model
-            args.qdict_size = len(dictionaries[0])
-            args.adict_size = len(dictionaries[1])
-
-            self.model = RN(args, self.config)
-
-            if torch.cuda.device_count() > 1 and args.cuda:
-                self.model = torch.nn.DataParallel(model)
-                self.model.module.cuda()  # call cuda() overridden method
-
-            elif torch.cuda.device_count() == 1 and args.cuda:
-                self.model.cuda()
-
-            else:
-                print('Not using CUDA')
-
-            # perform a full training
-            #TODO: find a better solution for general lr scheduling policies
-            candidate_lr = args.lr * args.lr_gamma ** (self.start_epoch-1 // args.lr_step)
-            lr = candidate_lr if candidate_lr <= args.lr_max else args.lr_max
-
-            self.es = EarlyStopping()
-            self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()), lr=lr, weight_decay=1e-4)
-            # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
-            self.scheduler = lr_scheduler.StepLR(self.optimizer, args.lr_step, gamma=args.lr_gamma)
-            self.scheduler.last_epoch = self.start_epoch
-            print('Training ({} epochs) is starting...'.format(args.epochs))
-
-            self.done = False
-
-        def _train(self):
-            bs = args.batch_size
-            if(((args.bs_max > 0 and bs < args.bs_max) or args.bs_max < 0 ) and (self.epoch % args.bs_step == 0 or self.epoch == self.start_epoch)):
-                bs = math.floor(args.batch_size * (args.bs_gamma ** (self.epoch // args.bs_step)))
-                if bs > args.bs_max and args.bs_max > 0:
-                    bs = args.bs_max
-                clevr_train_loader, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, bs, args.test_batch_size, hyp['state_description'])
-
-                #restart optimizer in order to restart learning rate scheduler
-                #for param_group in optimizer.param_groups:
-                #    param_group['lr'] = args.lr
-                #scheduler = lr_scheduler.CosineAnnealingLR(optimizer, step, min_lr)
-                #print('Dataset reinitialized with batch size {}'.format(bs))
-            
-            if((args.lr_max > 0 and self.scheduler.get_lr()[0]<args.lr_max) or args.lr_max < 0):
-                self.scheduler.step()
-                    
-            print('Current learning rate: {}'.format(self.optimizer.param_groups[0]['lr']))
-                
-            # TRAIN
-            #progress_bar.set_description('TRAIN')
-            avg_train_loss = train(clevr_train_loader, self.model, self.optimizer, self.epoch, args)
-
-            # TEST
-            #progress_bar.set_description('TEST')
-            _, accuracy = test(clevr_test_loader, self.model, self.epoch, dictionaries, args)
-
-            #check for early-stop
-            if self.es.step(avg_loss):
-                #print('Early-stopping at epoch {}'.format(epoch))
-                self.done = True
-
-            now = self.epoch
-            self.epoch += 1
-
-            return TrainingResult(
-                timesteps_this_iter=1, timesteps_total=now, done=self.done, mean_validation_accuracy=accuracy, mean_loss=avg_train_loss)
-
-        def _save(self, checkpoint_dir):
-            filename = 'RN_epoch_{:02d}.pth'.format(self.epoch)
-            checkpoint_path = os.path.join(checkpoint_dir, filename)
-            torch.save(self.model.state_dict(), checkpoint_path)
-            return checkpoint_path
-
-        def _restore(self, filename):
-            #print('==> loading checkpoint {}'.format(filename))
-            checkpoint = torch.load(filename)
-
-            #removes 'module' from dict entries, pytorch bug #3805
-            checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
-
-            self.model.load_state_dict(checkpoint)
-            #print('==> loaded checkpoint {}'.format(filename))
-            self.start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
-            self.scheduler.last_epoch = self.start_epoch
-    
+    print('Pinning global objects into the store...')
+    #pin args, hyp, dictionaries and datasets into the store
+    pinned_obj_dict['args'] = pin_in_object_store(args)
+    pinned_obj_dict['hyp'] = pin_in_object_store(hyp)
+    pinned_obj_dict['clevr_dataset_train'] = pin_in_object_store(clevr_dataset_train)
+    pinned_obj_dict['clevr_dataset_test'] = pin_in_object_store(clevr_dataset_test)
+    pinned_obj_dict['dictionaries'] = pin_in_object_store(dictionaries)
     
     '''if args.conv_transfer_learn:
         if os.path.isfile(args.conv_transfer_learn):
@@ -391,8 +407,6 @@ def main(args):
         #for epoch in progress_bar:
             
         #Using ray
-        ray.init()
-
         register_trainable("rn_train", RNTrain)
 
         # Hyperband early stopping

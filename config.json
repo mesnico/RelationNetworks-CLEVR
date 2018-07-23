@@ -40,6 +40,19 @@
 			"lstm_word_emb": 32,
 			"rl_in_size": 14
 	        },
+
+	"original-fp-innetaggr":
+		{
+			"state_description": false,
+			"g_layers": [512,2048,512,512,1024,1024],
+			"question_injection_position": 4,
+			"aggregation_position": 2,
+			"dropouts": {"0":0.3, "4":0.3}, 
+	            
+			"lstm_hidden": 128,
+	            	"lstm_word_emb": 32,
+	            	"rl_in_size": 52
+	        },
 	"original-sd-innetaggr-9":
 		{
 			"state_description": true,

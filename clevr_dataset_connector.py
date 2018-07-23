@@ -85,7 +85,7 @@ class ClevrDatasetStateDescription(Dataset):
         if os.path.exists(cached_questions):
             print('==> using cached questions: {}'.format(cached_questions))
             with open(cached_questions, 'rb') as f:
-                self.questions = pickle.load(f)[0:500]
+                self.questions = pickle.load(f)
         else:
             with open(quest_json_filename, 'r') as json_file:
                 self.questions = json.load(json_file)['questions']
@@ -95,7 +95,7 @@ class ClevrDatasetStateDescription(Dataset):
         if os.path.exists(cached_scenes):
             print('==> using cached scenes: {}'.format(cached_scenes))
             with open(cached_scenes, 'rb') as f:
-                self.objects = pickle.load(f)[0:100]
+                self.objects = pickle.load(f)
         else:
             all_scene_objs = []
             with open(scene_json_filename, 'r') as json_file:
