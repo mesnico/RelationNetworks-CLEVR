@@ -4,6 +4,8 @@ import json
 import numpy as np
 from PIL import Image
 import math
+import re
+import pickle
 
 import torch
 import torch.nn.functional as F
@@ -15,7 +17,7 @@ from model import ConvInputModel
 from torchvision import transforms
 
 from sklearn.metrics import average_precision_score
-
+from clevr_dataset_connector import ClevrDatasetImages
 from tqdm import tqdm, trange
 import pdb
 
@@ -119,6 +121,75 @@ def load_tensor_data(data_batch, cuda, volatile=False):
 
     return img, target
 
+def extract_features_rl(data, avg_features_file, max_features_file, flat_features_file, model, args):
+    #lay, io = args.layer.split(':') #TODO getting extraction layer from quest_inject_index, lay is unused
+
+    flatf = []
+    avgf = []
+    maxf = []
+    #noaggf = []
+
+    def hook_function(m, i, o):
+        nonlocal flatf, avgf, maxf #, noaggf
+        '''print(
+            'm:', type(m),
+            '\ni:', type(i),
+                '\n   len:', len(i),
+                '\n   type:', type(i[0]),
+                '\n   data size:', i[0].data.size(),
+                '\n   data type:', i[0].data.type(),
+            '\no:', type(o),
+                '\n   data size:', o.data.size(),
+                '\n   data type:', o.data.type(),
+        )'''
+        z = o #output of the layer
+        # aggregate features
+        #d4_combinations = z.size()[0] // args.batch_size
+        #x_ = z.view(args.batch_size, d4_combinations, z.size()[1])
+        #if extr_layer_idx == quest_inject_index:
+        #    x_ = x_[:,:,:z.size()[1]-lstm_emb_size]
+        #x_ = F.normalize(x_, p=2, dim=2)
+        #maxf = x_.max(1)[0].squeeze()
+        bs = o.size()[0]
+        avgf = o.view(bs, 24, 8**2).mean(2).squeeze()
+        avgf = avgf.data.cpu().numpy()
+        maxf = o.view(bs, 24, 8**2).max(2)[0].squeeze()
+        maxf = maxf.data.cpu().numpy()
+
+        flatf = o.view(bs, 24*8**2)
+        flatf = flatf.data.cpu().numpy()
+        #noaggf = x_.data.cpu().numpy()
+
+    model.eval()
+
+    #lay = 'g_layers'
+    progress_bar = tqdm(data)
+    progress_bar.set_description('FEATURES EXTRACTION from conv layer')
+    avg_features = []
+    flat_features = []
+    max_features = []
+
+    extraction_layer = model._modules.get('conv')
+    h = extraction_layer.register_forward_hook(hook_function)
+    for batch_idx, sample_batched in enumerate(progress_bar):
+        img = torch.autograd.Variable(sample_batched)
+        if args.cuda:
+            img = img.cuda()
+        
+        model(img)
+
+        avg_features.append((batch_idx, avgf))
+        max_features.append((batch_idx, maxf))
+        flat_features.append((batch_idx, flatf))
+        #with open('features/noaggr-{}.gz'.format(batch_idx),'wb') as f:
+        #    np.savetxt(f, np.reshape(noaggf, (args.batch_size,4096*256)), fmt='%.6e')
+
+    h.remove()
+
+    pickle.dump(avg_features, avg_features_file)
+    pickle.dump(max_features, max_features_file)
+    pickle.dump(flat_features, flat_features_file)
+
 def train(data, model, optimizer, epoch, args):
     model.train()
     loss_funct = nn.MultiLabelSoftMarginLoss()
@@ -127,7 +198,7 @@ def train(data, model, optimizer, epoch, args):
     n_batches = 0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
-        img, target = load_tensor_data(sample_batched, args.cuda, volatile=True)
+        img, target = load_tensor_data(sample_batched, args.cuda, volatile=False)
 
         # forward and backward pass
         optimizer.zero_grad()
@@ -163,7 +234,7 @@ def test(data, model, epoch, args):
         img, target = load_tensor_data(sample_batched, args.cuda, volatile=True)
         
         output = model(img)
-        ap = average_precision_score(target, output.data) 
+        ap = average_precision_score(target.data, output.data) 
         n_iters += 1
         ap_sum += ap
         if batch_idx % args.log_interval == 0:
@@ -195,12 +266,15 @@ def main(args):
 
     clevr_dataset_train = ClevrDatasetForMulticlass(args.clevr_dir, True, 0.05, train_transforms)
     clevr_dataset_test = ClevrDatasetForMulticlass(args.clevr_dir, False, 0.05, test_transforms)
+    clevr_dataset_extract = ClevrDatasetImages(args.clevr_dir, False, test_transforms)
     
     # Initialize Clevr dataset loaders
     clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=args.batch_size,
                                     shuffle=True, num_workers=8, collate_fn=collate_samples)
     clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=args.batch_size,
                                    shuffle=False, num_workers=8, collate_fn=collate_samples)
+    clevr_extract_loader = DataLoader(clevr_dataset_extract, batch_size=args.batch_size,
+                                   shuffle=False, num_workers=8)
 
     print('CLEVR dataset initialized!')
 
@@ -233,6 +307,21 @@ def main(args):
         #perform a single test
         print('Testing epoch {}'.format(start_epoch))
         test(clevr_test_loader, model, start_epoch, args)
+    elif args.extract:
+        print('Extracting features, epoch {}'.format(start_epoch))
+        args.features_dirs = './features'
+        if not os.path.exists(args.features_dirs):
+            os.makedirs(args.features_dirs)
+
+        flat_features = os.path.join(args.features_dirs, 'cnn_flat_features.pickle')
+        avg_features = os.path.join(args.features_dirs, 'cnn_global-avg-pool_features.pickle')
+        max_features = os.path.join(args.features_dirs, 'cnn_global-max-pool_features.pickle')
+
+        flat_features = open(flat_features, 'wb')
+        avg_features = open(avg_features, 'wb')
+        max_features = open(max_features, 'wb')
+        
+        extract_features_rl(clevr_extract_loader, avg_features, max_features, flat_features, model, args)
     else:
         #perform a full training
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
@@ -269,6 +358,8 @@ if __name__ == '__main__':
                         help='base directory of CLEVR dataset')
     parser.add_argument('--test', action='store_true', default=False,
                         help='perform only a single test. To use with --resume')
+    parser.add_argument('--extract', action='store_true', default=False,
+                        help='perform features extraction. To use with --resume')
 
     args = parser.parse_args()
     main(args)
