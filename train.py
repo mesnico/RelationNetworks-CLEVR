@@ -9,6 +9,7 @@ import os
 import pickle
 import re
 import numpy as np
+import time
 
 import torch
 import torch.nn.functional as F
@@ -28,10 +29,13 @@ from model import RN
 import ray
 from ray import tune
 from ray.tune import Trainable, TrainingResult, register_trainable, run_experiments, Experiment
+from ray.tune.async_hyperband import AsyncHyperBandScheduler
 from ray.tune.hyperband import HyperBandScheduler
 from ray.tune.util import pin_in_object_store, get_pinned_object
+import config
 
 import pdb
+DEBUG = True
 
 def train(data, model, optimizer, epoch, args):
     model.train()
@@ -39,8 +43,8 @@ def train(data, model, optimizer, epoch, args):
     avg_loss = 0.0
     global_avg_loss = 0.0
     n_batches = 0
-    progress_bar = tqdm(data)
-    for batch_idx, sample_batched in enumerate(progress_bar):
+    #progress_bar = tqdm(data)
+    for batch_idx, sample_batched in enumerate(data):
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions)
 
         # forward and backward pass
@@ -56,7 +60,7 @@ def train(data, model, optimizer, epoch, args):
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss=loss.data[0]))
+        #progress_bar.set_postfix(dict(loss=loss.data[0]))
         avg_loss += loss.data[0]
         global_avg_loss += loss.data[0]
         n_batches += 1
@@ -66,8 +70,8 @@ def train(data, model, optimizer, epoch, args):
             processed = batch_idx * args.batch_size
             n_samples = len(data) * args.batch_size
             progress = float(processed) / n_samples
-            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {}'.format(
-                epoch, processed, n_samples, progress, avg_loss))
+            #print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {}'.format(
+            #    epoch, processed, n_samples, progress, avg_loss))
             avg_loss = 0.0
             n_batches = 0
 
@@ -105,8 +109,8 @@ def test(data, model, epoch, dictionaries, args):
     sorted_labels = [sorted_labels[c] for c in sorted_classes]
 
     avg_loss = 0.0
-    progress_bar = tqdm(data)
-    for batch_idx, sample_batched in enumerate(progress_bar):
+    #progress_bar = tqdm(data)
+    for batch_idx, sample_batched in enumerate(data):
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
         
         output = model(img, qst)
@@ -140,13 +144,13 @@ def test(data, model, epoch, dictionaries, args):
         if batch_idx % args.log_interval == 0:
             accuracy = corrects / n_samples
             invalids_perc = invalids / n_samples
-            progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
+            #progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
     
     avg_loss /= len(data)
     invalids_perc = invalids / n_samples      
-    accuracy = corrects / n_samples
+    glob_accuracy = corrects / n_samples
 
-    print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{}); Invalids = {:.2%} ({:g}/{}); Test loss = {}'.format(epoch, accuracy, corrects, n_samples, invalids_perc, invalids, n_samples, avg_loss))
+    #print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{}); Invalids = {:.2%} ({:g}/{}); Test loss = {}'.format(epoch, glob_accuracy, corrects, n_samples, invalids_perc, invalids, n_samples, avg_loss))
     for v in class_n_samples.keys():
         accuracy = 0
         invalid = 0
@@ -156,7 +160,7 @@ def test(data, model, epoch, dictionaries, args):
         print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
 
     # dump results on file
-    filename = os.path.join(args.test_results_dir, 'test.pickle')
+    #filename = os.path.join(args.test_results_dir, 'test.pickle')
     dump_object = {
         'class_corrects':class_corrects,
         'class_invalids':class_invalids,
@@ -164,10 +168,10 @@ def test(data, model, epoch, dictionaries, args):
         'confusion_matrix_target':confusion_matrix_target,
         'confusion_matrix_pred':confusion_matrix_pred,
         'confusion_matrix_labels':sorted_labels,
-        'global_accuracy':accuracy
+        'global_accuracy':glob_accuracy
     }
-    pickle.dump(dump_object, open(filename,'wb'))
-    return avg_loss, accuracy
+    #pickle.dump(dump_object, open(filename,'wb'))
+    return avg_loss, glob_accuracy, dump_object
 
 def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, state_description = False):
     if not state_description:
@@ -218,7 +222,6 @@ class RNTrain(Trainable):
         self.epoch = self.start_epoch
 
         self.args = get_pinned_object(pinned_obj_dict['args'])
-        self.hyp = get_pinned_object(pinned_obj_dict['hyp'])
         self.dictionaries = get_pinned_object(pinned_obj_dict['dictionaries'])
         self.clevr_dataset_train = get_pinned_object(pinned_obj_dict['clevr_dataset_train'])
         self.clevr_dataset_test = get_pinned_object(pinned_obj_dict['clevr_dataset_test'])
@@ -254,7 +257,7 @@ class RNTrain(Trainable):
             bs = math.floor(self.args.batch_size * (self.args.bs_gamma ** (self.epoch // self.args.bs_step)))
             if bs > self.args.bs_max and self.args.bs_max > 0:
                 bs = self.args.bs_max
-            clevr_train_loader, clevr_test_loader = reload_loaders(self.clevr_dataset_train, self.clevr_dataset_test, bs, args.test_batch_size, self.hyp['state_description'])
+            self.clevr_train_loader, self.clevr_test_loader = reload_loaders(self.clevr_dataset_train, self.clevr_dataset_test, bs, self.args.test_batch_size, self.config['state_description'])
 
             #restart optimizer in order to restart learning rate scheduler
             #for param_group in optimizer.param_groups:
@@ -269,14 +272,14 @@ class RNTrain(Trainable):
             
         # TRAIN
         #progress_bar.set_description('TRAIN')
-        avg_train_loss = train(clevr_train_loader, self.model, self.optimizer, self.epoch, self.args)
+        avg_train_loss = train(self.clevr_train_loader, self.model, self.optimizer, self.epoch, self.args)
 
         # TEST
         #progress_bar.set_description('TEST')
-        _, accuracy = test(clevr_test_loader, self.model, self.epoch, self.dictionaries, self.args)
+        avg_test_loss, accuracy, _ = test(self.clevr_test_loader, self.model, self.epoch, self.dictionaries, self.args)
 
         #check for early-stop
-        if self.es.step(avg_loss):
+        if self.es.step(avg_test_loss):
             #print('Early-stopping at epoch {}'.format(epoch))
             self.done = True
 
@@ -287,7 +290,7 @@ class RNTrain(Trainable):
             timesteps_this_iter=1, timesteps_total=now, done=self.done, mean_validation_accuracy=accuracy, mean_loss=avg_train_loss)
 
     def _save(self, checkpoint_dir):
-        filename = 'RN_epoch_{:02d}.pth'.format(self.epoch)
+        filename = 'RN_epoch_{:02d}.pth'.format(self.epoch-1)
         checkpoint_path = os.path.join(checkpoint_dir, filename)
         torch.save([self.model.state_dict(), self.optimizer.state_dict()], checkpoint_path)
         return checkpoint_path
@@ -302,14 +305,18 @@ class RNTrain(Trainable):
         self.model.load_state_dict(checkpoint)
         self.optimizer.load_state_dict(optimizer_chkp)
         #print('==> loaded checkpoint {}'.format(filename))
-        start_epoch = int(re.match(r'.*epoch_(\d+).pth', filename).groups()[0]) + 1
+        self.start_epoch = int(re.match(r'.*epoch_(\d+).pth', filename).groups()[0]) + 1
+        self.epoch = self.start_epoch
         self.scheduler.last_epoch = self.start_epoch
-        
+
+def launch_tensorboard(logdir):
+    os.system('tensorboard --logdir=~/ray_results/' + logdir)
+    return      
 
 def main(args):
     #load hyperparameters from configuration file
-    with open(args.config) as config_file: 
-        hyp = json.load(config_file)['hyperparams'][args.model]
+    #with open(args.config) as config_file: 
+    #    hyp = json.load(config_file)['hyperparams'][args.model]
 
     #if args.question_injection >= 0:
     #    hyp['question_injection_position'] = args.question_injection
@@ -348,15 +355,14 @@ def main(args):
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
-    clevr_dataset_train, clevr_dataset_test = initialize_dataset(args.clevr_dir, dictionaries, hyp['state_description'])
+    clevr_dataset_train, clevr_dataset_test = initialize_dataset(args.clevr_dir, dictionaries, config.hyperparams[args.model]['tune']['state_description'])
     print('CLEVR dataset initialized!')
 
-    ray.init()
+    ray.init(num_gpus=args.num_gpus)
 
     print('Pinning global objects into the store...')
     #pin args, hyp, dictionaries and datasets into the store
     pinned_obj_dict['args'] = pin_in_object_store(args)
-    pinned_obj_dict['hyp'] = pin_in_object_store(hyp)
     pinned_obj_dict['clevr_dataset_train'] = pin_in_object_store(clevr_dataset_train)
     pinned_obj_dict['clevr_dataset_test'] = pin_in_object_store(clevr_dataset_test)
     pinned_obj_dict['dictionaries'] = pin_in_object_store(dictionaries)
@@ -398,10 +404,11 @@ def main(args):
 
     #progress_bar = trange(start_epoch, args.epochs + 1)
     if args.test:
+        print('TODO')
         # perform a single test
-        print('Testing epoch {}'.format(start_epoch))
-        _, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, args.batch_size, args.test_batch_size, hyp['state_description'])
-        test(clevr_test_loader, model, start_epoch, dictionaries, args)
+        #print('Testing epoch {}'.format(start_epoch))
+        #_, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, args.batch_size, args.test_batch_size, hyp['state_description'])
+        #test(clevr_test_loader, model, start_epoch, dictionaries, args)
     else:
         #TODO: call method from RNTrain class if not using Ray
         #for epoch in progress_bar:
@@ -413,34 +420,30 @@ def main(args):
         hyperband = HyperBandScheduler(
             time_attr="timesteps_total",
             reward_attr="mean_validation_accuracy",
-            max_t=250)
+            max_t=args.epochs)
 
-        exp = Experiment(
-            name="rn_hyperband",
-            run="rn_train",
-            trial_resources={ "cpu": 8, "gpu": 1},
-            repeat=1,
-            config={
-                "state_description": True,
-                "g_layers": [
-                    tune.grid_search([128, 256, 1024]),
-                    tune.grid_search([128, 256, 1024]),
-                    tune.grid_search([128, 256, 1024]),
-                    tune.grid_search([128, 256, 1024]),
-                ],
-                "question_injection_position": 4,   #TODO: randomize those two
-                "aggregation_position": 2,
-                "dropouts": {
-                    "0":lambda spec: np.random.uniform(),
-                    "4":lambda spec: np.random.uniform(),
-                },
-	                
-                "lstm_hidden": tune.grid_search([128, 256]),
-                "lstm_word_emb": 32,
-                "rl_in_size": 14
-            })
+        exp_config = {
+            'run': 'rn_train',
+            'checkpoint_freq': 5,
+            'stop': {'training_iteration':args.epochs},
+            'trial_resources': config.hyperparams[args.model]['resources'],
+            'repeat': config.hyperparams[args.model]['repeat'],
+            'config': config.hyperparams[args.model]['tune']
+        }
 
-        run_experiments(exp, scheduler=hyperband)
+        if DEBUG:
+            exp_config['stop']['training_iteration'] = 2
+            exp_config['repeat'] = 2
+            exp_config['checkpoint_freq'] = 1
+
+        config_name = "rn_hyperband_{}".format(time.strftime("%Y-%m-%d_%H.%M.%S"))
+
+        #launch tensorboard
+        import threading
+        t = threading.Thread(target=launch_tensorboard, args=[config_name])
+        t.start()
+
+        run_experiments({config_name:exp_config}, scheduler=hyperband)
 
 
 
@@ -488,8 +491,10 @@ if __name__ == '__main__':
                         help='increasing rate for the batch size. 1 to keep batch-size constant.')
     parser.add_argument('--bs-step', type=int, default=20, 
                         help='number of epochs before batch-size update')
-    parser.add_argument('--config', type=str, default='config.json',
-                        help='configuration file for hyperparameters loading')
+    parser.add_argument('--num-gpus', type=int, default=1, 
+                        help='number of available gpus')
+    #parser.add_argument('--config', type=str, default='config.json',
+    #                    help='configuration file for hyperparameters loading')
     parser.add_argument('--question-injection', type=int, default=-1, 
                         help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value)')
     args = parser.parse_args()

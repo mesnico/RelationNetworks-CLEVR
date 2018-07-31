@@ -105,6 +105,7 @@ class RelationalLayer(RelationalLayerBase):
                 l = nn.Linear(in_s, out_s)
             self.g_layers.append(l)	
         self.g_layers = nn.ModuleList(self.g_layers)
+        self.proj_layer = nn.Linear(self.g_layers_size[-1], out_size)
         self.extraction = extraction
     
     def forward(self, x, qst):
@@ -143,14 +144,14 @@ class RelationalLayer(RelationalLayerBase):
 
                 # add question everywhere
                 unsq_qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
-                unsq_qst = unsq_qst.repeat(1, n_couples**2, 1)          # (B x 64*64 x 128)
+                unsq_qst = unsq_qst.repeat(1, n_couples, 1)          # (B x 64*64 x 128)
                 #unsq_qst = torch.unsqueeze(unsq_qst, 2)                 # (B x 64 x 1 x 128)
                 #unsq_qst = unsq_qst.repeat(1,1,n_couples,1)
 
                 # questions inserted
                 
                 x_concat = torch.cat([x_img,unsq_qst],2) #(B x 64*64 x 128+256)
-                x_ = x_concat.view(b*(n_couples**2),in_size+self.qst_size)
+                x_ = x_concat.view(b*n_couples,in_size+self.qst_size)
                 
                 x_ = g_layer(x_)
 
@@ -166,12 +167,15 @@ class RelationalLayer(RelationalLayerBase):
                 x_ = self.dropouts[idx](x_)
                 
             #apply ReLU after every layer except the last
-            if idx!=len(self.g_layers_size)-1:
-                debug_print('{} - ReLU'.format(idx))
-                x_ = F.relu(x_)
+            #if idx!=len(self.g_layers_size)-1:
+            #    debug_print('{} - ReLU'.format(idx))
+            x_ = F.relu(x_)
 
         if DEBUG:
-            pdb.set_trace()        
+            pdb.set_trace()
+
+        #projection layer
+        x_ = self.proj_layer(x_)        
 
         return F.log_softmax(x_, dim=1)
 

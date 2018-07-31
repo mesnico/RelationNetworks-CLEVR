@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker build -t pytorch-rn .
+docker build -t pytorch-rn-raytune .

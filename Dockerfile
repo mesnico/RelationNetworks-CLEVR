@@ -49,26 +49,9 @@ RUN conda install -y --name pytorch-py36 -c soumith \
     magma-cuda80 \
  && conda clean -ya
 
-# Install PyTorch and Torchvision
-RUN conda install -y --name pytorch-py36 -c soumith \
-    pytorch=0.3.0 torchvision=0.2.0 \
- && conda clean -ya
+COPY requirements.txt /tmp/
+RUN pip install -r /tmp/requirements.txt
 
-# Install HDF5 Python bindings
-RUN conda install -y --name pytorch-py36 \
-    h5py \
- && conda clean -ya
-RUN pip install h5py-cache tqdm
-
-# Install Torchnet, a high-level framework for PyTorch
-# RUN pip install git+https://github.com/pytorch/tnt.git@master
-
-# Install Requests, a Python library for making HTTP requests
-# RUN conda install -y --name pytorch-py36 requests && conda clean -ya
-
-# Install Graphviz
-# RUN conda install -y --name pytorch-py36 graphviz=2.38.0 \
-# && conda clean -ya
 
 # Set the default command to python3
 CMD ["python3"]
