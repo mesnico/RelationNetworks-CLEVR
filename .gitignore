@@ -20,7 +20,7 @@ eggs/
 .eggs/
 lib/
 lib64/
-*model*/
+model*/
 parts/
 sdist/
 var/

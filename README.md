@@ -5,6 +5,8 @@ This code tries to reproduce results obtained by DeepMind team, both for the _Fr
 
 The model can also be trained with a slightly modified version of RN, called IR, that enables relational features extraction in order to perform Relational Content Based Image Retrieval (R-CBIR).
 
+We released **pretrained models** for both Original and Image Retrieval architectures (below, detailed instructions on how to use them).
+
 ## Accuracy
 
 Accuracy values measured on the test set:
@@ -71,7 +73,20 @@ It is possible to run a test session even after training, by loading a specific 
 ```
 python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --model 'original-fp' --resume RN_epoch_xxx.pth --test
 ```
+**IMPORTANT**: If you receive an *out of memory* error from CUDA due to the fact that you have not enough V-RAM for testing, just lower the test batch-size to 64 or 32 by using the option ```--test-batch-size 32```
+### Using pre-trained models
+We released pre-trained models for Original and Image-Retrieval architectures, for the challenging from-pixels version.
 
+#### Test on original pre-trained
+Epoch 493
+```
+python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --model 'original-fp' --resume pretrained_models/original_fp_epoch_493.pth --test
+```
+#### Test on IR pre-trained
+Epoch 312
+```
+python3 train.py --clevr-dir path/to/CLEVR_v1.0/ --model 'ir-fp' --resume pretrained_models/ir_fp_epoch_312.pth --test
+```
 ### Confusion plot
 Once test has been performed at least once (note that a test session can be explicitly run but it is also always run automatically after every train epoch), some insights are saved into ```test_results``` and a confusion plot can be generated from them:
 ```
