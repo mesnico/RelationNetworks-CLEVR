@@ -71,7 +71,7 @@ def extract_features_rl(data, quest_inject_index, extr_layer_idx, lstm_emb_size,
         elif lay=='conv':
             bs = o.size()[0]
             x_ = o
-            x_ = F.normalize(x_, p=2, dim=1)
+            #x_ = F.normalize(x_, p=2, dim=1)
             x_ = x_.view(bs, 24, 8**2)
 
             avgconvf = x_.mean(2).squeeze()
@@ -120,7 +120,7 @@ def extract_features_rl(data, quest_inject_index, extr_layer_idx, lstm_emb_size,
         pickle.dump(max_features, files_dict['max_features'])
         pickle.dump(avg_features, files_dict['avg_features'])
     elif lay=='conv':
-        pickle.dump(flatconv_features, files_dict['flatconv_features'])
+        #pickle.dump(flatconv_features, files_dict['flatconv_features'])
         pickle.dump(avgconv_features, files_dict['avgconv_features'])
         pickle.dump(maxconv_features, files_dict['maxconv_features'])
 
@@ -175,16 +175,16 @@ def main(args):
     files_dict={}
     if args.extr_layer_idx>=0: #g_layers features
         files_dict['max_features'] = \
-            open(os.path.join(args.features_dirs, '{}_gfc{}_max_features.pickle'.format(args.set,args.extr_layer_idx)),'wb')
+            open(os.path.join(args.features_dirs, '{}_2S-RN_max_features.pickle'.format(args.set,args.extr_layer_idx)),'wb')
         files_dict['avg_features'] = \
-            open(os.path.join(args.features_dirs, '{}_gfc{}_avg_features.pickle'.format(args.set,args.extr_layer_idx)),'wb')
+            open(os.path.join(args.features_dirs, '{}_2S-RN_avg_features.pickle'.format(args.set,args.extr_layer_idx)),'wb')
     else:
-        files_dict['flatconv_features'] = \
-            open(os.path.join(args.features_dirs, '{}_flatconv_features.pickle'.format(args.set)),'wb')
+        '''files_dict['flatconv_features'] = \
+            open(os.path.join(args.features_dirs, '{}_flatconv_features.pickle'.format(args.set)),'wb')'''
         files_dict['avgconv_features'] = \
-            open(os.path.join(args.features_dirs, '{}_avgconv_features_prenorm.pickle'.format(args.set)),'wb')
+            open(os.path.join(args.features_dirs, '{}_RN_avg_features.pickle'.format(args.set)),'wb')
         files_dict['maxconv_features'] = \
-            open(os.path.join(args.features_dirs, '{}_maxconv_features_prenorm.pickle'.format(args.set)),'wb')
+            open(os.path.join(args.features_dirs, '{}_RN_max_features.pickle'.format(args.set)),'wb')
 
     print('Building word dictionaries from all the words in the dataset...')
     dictionaries = utils.build_dictionaries(args.clevr_dir)

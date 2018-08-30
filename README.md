@@ -23,6 +23,12 @@ Accuracy values measured on the test set:
 git clone https://github.com/mesnico/RelationNetworks-CLEVR
 cd RelationNetworks-CLEVR
 ```
+4. Setup a virtual environment (optional, but recommended)
+```
+mkdir env
+virtualenv -p /usr/bin/python3 env
+source env/bin/activate
+```
 3. Install requirements: 
 ```
 pip3 install -r requirements.txt
