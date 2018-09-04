@@ -5,7 +5,6 @@ This model can be used for extracting visual features useful for Relational Cont
 
 In order to extract visual features, the simplest way is to run the following:
 ```
-chmod u+x extract_features.sh
 ./extract_features.sh path/to/CLEVR_v1.0
 ```
 Features are stored in pickle format under ```features``` folder.
