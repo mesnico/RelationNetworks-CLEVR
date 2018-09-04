@@ -1,10 +1,11 @@
 # Features Extraction
-This model can be used for extracting visual features useful for Relational Content-Based Image Retrieval applications. We used a modification of the original RN architecture, called 2S-RN.
+This model can be used for extracting visual features useful for Relational Content-Based Image Retrieval applications. Along with the original RN formulation, we employed a tiny modification, called 2S-RN (Two-stage RN):
 
 ![twolayerrn](https://user-images.githubusercontent.com/25117311/44774024-5c6bf300-ab72-11e8-9258-52aaa5805f64.png)
 
-In order to extract visual features, the simplest way is to run the following script:
+In order to extract visual features, the simplest way is to run the following:
 ```
+chmod u+x extract_features.sh
 ./extract_features.sh path/to/CLEVR_v1.0
 ```
 Features are stored in pickle format under ```features``` folder.

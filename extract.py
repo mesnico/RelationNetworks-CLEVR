@@ -33,6 +33,10 @@ def extract_features_rl(data, quest_inject_index, extr_layer_idx, lstm_emb_size,
     #noaggf = []
 
     progress_bar = tqdm(data)
+    #handles 'module' for multi-gpu models, pytorch bug #3805
+    if hasattr(model, 'module'):
+        model = model.module
+
     if extr_layer_idx>=0:
         lay = 'g_layers'
         progress_bar.set_description('FEATURES EXTRACTION from {}, {}-set, input of g_fc{} layer'.format(lay, args.set, extr_layer_idx+1))
@@ -207,7 +211,13 @@ def main(args):
     checkpoint = torch.load(args.checkpoint, map_location=lambda storage, loc: storage)
 
     #removes 'module' from dict entries, pytorch bug #3805
-    checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
+    #removes 'module' from dict entries, pytorch bug #3805
+    if torch.cuda.device_count() == 1 and any(k.startswith('module.') for k in checkpoint.keys()):
+        print('Removing \'module.\' prefix') 
+        checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
+    if torch.cuda.device_count() > 1 and not any(k.startswith('module.') for k in checkpoint.keys()):
+        print('Adding \'module.\' prefix') 
+        checkpoint = {'module.'+k: v for k,v in checkpoint.items()}
 
     model.load_state_dict(checkpoint)
     print('==> loaded checkpoint {}'.format(args.checkpoint))
@@ -224,8 +234,8 @@ if __name__ == '__main__':
                         help='which model is used to train the network')
     parser.add_argument('--clevr-dir', type=str, default='.',
                         help='base directory of CLEVR dataset')
-    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
-                        help='input batch size for training (default: 64)')
+    parser.add_argument('--batch-size', type=int, default=60, metavar='N',
+                        help='input batch size for training (default: 60)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--set',type=str, choices=['train','test'], default='test',

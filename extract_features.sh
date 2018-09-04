@@ -18,12 +18,15 @@ if [ ! -f .venvok ]; then
 	mkdir extraction_env
 	virtualenv -p /usr/bin/python3 extraction_env
 fi
+
 source ./extraction_env/bin/activate
 
 if [ ! -f .venvok ]; then
 	echo "Installing dependencies..."
 	which pip3
 	pip3 install -r requirements.txt
+
+	touch .venvok
 else 
 	echo "Extraction environment already installed"
 fi
