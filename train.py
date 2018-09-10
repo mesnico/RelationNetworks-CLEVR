@@ -35,7 +35,7 @@ from ray.tune.util import pin_in_object_store, get_pinned_object
 import config
 
 import pdb
-DEBUG = True
+DEBUG = False
 
 def train(data, model, optimizer, epoch, args):
     model.train()
@@ -157,7 +157,7 @@ def test(data, model, epoch, dictionaries, args):
         if class_n_samples[v] != 0:
             accuracy = class_corrects[v] / class_n_samples[v]
             invalid = class_invalids[v] / class_n_samples[v]
-        print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
+        #print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
 
     # dump results on file
     #filename = os.path.join(args.test_results_dir, 'test.pickle')
@@ -187,9 +187,9 @@ def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, s
     else:
         # Initialize Clevr dataset loaders
         clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
-                                        shuffle=True, collate_fn=utils.collate_samples_state_description)
+                                        shuffle=True, num_workers=4, collate_fn=utils.collate_samples_state_description)
         clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
-                                       shuffle=False, collate_fn=utils.collate_samples_state_description)
+                                       shuffle=False, num_workers=4, collate_fn=utils.collate_samples_state_description)
     return clevr_train_loader, clevr_test_loader
 
 def initialize_dataset(clevr_dir, dictionaries, state_description=True):
@@ -217,7 +217,7 @@ pinned_obj_dict = {}
 
 class RNTrain(Trainable):
     def _setup(self):
-        print('Starting setup with configs: {}'.format(self.config))
+        #print('Starting setup with configs: {}'.format(self.config))
         self.start_epoch = 1
         self.epoch = self.start_epoch
 
@@ -247,7 +247,7 @@ class RNTrain(Trainable):
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         self.scheduler = lr_scheduler.StepLR(self.optimizer, self.args.lr_step, gamma=args.lr_gamma)
         self.scheduler.last_epoch = self.start_epoch
-        print('Training ({} epochs) is starting...'.format(self.args.epochs))
+        #print('Training ({} epochs) is starting...'.format(self.args.epochs))
 
         self.done = False
 
@@ -268,7 +268,7 @@ class RNTrain(Trainable):
         if((self.args.lr_max > 0 and self.scheduler.get_lr()[0]<self.args.lr_max) or self.args.lr_max < 0):
             self.scheduler.step()
                 
-        print('Current learning rate: {}'.format(self.optimizer.param_groups[0]['lr']))
+        #print('Current learning rate: {}'.format(self.optimizer.param_groups[0]['lr']))
             
         # TRAIN
         #progress_bar.set_description('TRAIN')
@@ -417,10 +417,10 @@ def main(args):
         register_trainable("rn_train", RNTrain)
 
         # Hyperband early stopping
-        hyperband = HyperBandScheduler(
+        hyperband = AsyncHyperBandScheduler(
             time_attr="timesteps_total",
             reward_attr="mean_validation_accuracy",
-            max_t=args.epochs)
+            max_t=100) #args.epochs)
 
         exp_config = {
             'run': 'rn_train',
