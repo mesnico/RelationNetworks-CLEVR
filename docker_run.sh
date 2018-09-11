@@ -13,5 +13,6 @@ else
 		-p 0.0.0.0:6006:6006 \
 		--volume=$PWD:/app \
 		--volume=$CLEVRDIR:/clevr \
+		--volume=$PWD/ray_results:/home/user/ray_results \
 		pytorch-rn-raytune python3 /app/train.py --model 'sd-innetaggr' --clevr-dir=/clevr --num-gpus $NUMGPUS
 fi

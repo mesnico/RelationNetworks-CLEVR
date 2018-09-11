@@ -340,9 +340,9 @@ def main(args):
     #    config_file.write(all_configuration)
 
     #args.features_dirs = './features'
-    args.test_results_dir = './test_results'
+    '''args.test_results_dir = './test_results'
     if not os.path.exists(args.test_results_dir):
-        os.makedirs(args.test_results_dir)
+        os.makedirs(args.test_results_dir)'''
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -420,7 +420,8 @@ def main(args):
         hyperband = AsyncHyperBandScheduler(
             time_attr="timesteps_total",
             reward_attr="mean_validation_accuracy",
-            max_t=100) #args.epochs)
+            grace_period=40,
+            max_t=300) #args.epochs)
 
         exp_config = {
             'run': 'rn_train',
