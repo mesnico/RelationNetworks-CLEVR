@@ -194,10 +194,14 @@ class Evaluator():
             filename = args.resume
             if os.path.isfile(filename):
                 print('==> loading checkpoint {}'.format(filename))
-                checkpoint = torch.load(filename)
+                if args.cuda:
+                    checkpoint = torch.load(filename)
+                else:
+                    #map loaded checkpoint onto the CPU
+                    checkpoint = torch.load(filename, map_location=lambda storage, loc: storage)
 
                 #removes 'module' from dict entries, pytorch bug #3805
-                if torch.cuda.device_count() == 1 and any(k.startswith('module.') for k in checkpoint.keys()):
+                if (torch.cuda.device_count() == 1 or not args.cuda) and any(k.startswith('module.') for k in checkpoint.keys()):
                     checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
                 if torch.cuda.device_count() > 1 and not any(k.startswith('module.') for k in checkpoint.keys()):
                     checkpoint = {'module.'+k: v for k,v in checkpoint.items()}
