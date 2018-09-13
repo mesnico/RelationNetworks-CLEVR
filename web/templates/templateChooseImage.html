@@ -1,0 +1,13 @@
+<div id='images-container' infinite-scroll='contr.loadMore()' infinite-scroll-distance='0' infinite-scroll-parent='true' infinite-scroll-disabled="{{ '{{contr.loadMoreEnabled}}' }}">
+    <div class="placeholder col-lg-3 col-md-4 col-xs-6" ng-repeat='image in contr.loadedData'>
+        <a href="javascript:void(0)" ng-click="chosenQuery(image[0])" class="d-block mb-4 h-100" ng-class="{disabledLink: linkDisabled()}">
+            <img img-fade-in-onload='clevr-imgs/val/CLEVR_val_{{ '{{image[1]}}' }}.png' class="result-img img-fluid img-thumbnail">
+        </a>
+    </div>
+</div> 
+<div class="samples-footer">
+    <div class="loadmore">
+        <button type="button" class="btn btn-primary" ng-click="loadMore()" id="query-btn">Load More</button>
+    </div>
+    <a href="javascript:void(0)" ng-click="queryChoice()">Change Query Image</a>
+</div>

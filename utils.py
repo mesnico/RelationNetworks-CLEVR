@@ -160,7 +160,7 @@ class JsonCache:
                 with open(cached_filename, 'rb') as f:
                     self.out = pickle.load(f)
             else:
-                self.out = shelve.open(cached_filename)
+                self.out = shelve.open(cached_filename, flag='r')
                 
         else:
             with open(json_filename, 'r') as json_file:
@@ -186,3 +186,24 @@ class JsonCache:
     def __len__(self):
         return len(self.out)
         
+
+def load_images_question_mappings(json_filename):
+    cached_filename = json_filename.replace('.json', '.images-to-questions.pkl')
+    if os.path.exists(cached_filename):
+        print('==> using cached images-to-questions: {}'.format(cached_filename))
+        with open(cached_filename, 'rb') as f:
+            out = pickle.load(f)
+    else:
+        out = {}
+        with open(json_filename, 'r') as json_file:
+            questions = json.load(json_file)['questions']
+        for s in questions:
+            image_index = s['image_index']
+            idx = s['question_index']
+            if image_index not in out:
+                out[image_index] = [idx]
+            else:
+                out[image_index].append(idx)
+        with open(cached_filename, 'wb') as f:
+            pickle.dump(out, f)
+    return out

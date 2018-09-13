@@ -164,6 +164,7 @@ class Evaluator():
         print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
         args.cuda = not args.no_cuda and torch.cuda.is_available()
+        args.invert_questions = not args.no_invert_questions
 
         torch.manual_seed(args.seed)
         if args.cuda:
@@ -237,8 +238,6 @@ class Evaluator():
 if __name__ == '__main__':
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch Relational-Network CLEVR')
-    parser.add_argument('--clip-norm', type=int, default=50,
-                        help='max norm for gradients; set to 0 to disable gradient clipping (default: 10)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--seed', type=int, default=42, metavar='S',
@@ -263,7 +262,6 @@ if __name__ == '__main__':
                         help='Hand write the question')
 
     args = parser.parse_args()
-    args.invert_questions = not args.no_invert_questions
     
     #sample evaluation
     qid = input('Enter question ID from test set: ')

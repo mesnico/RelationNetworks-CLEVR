@@ -1,0 +1,8 @@
+<div ng-repeat='qst in contr.questions'>
+    <a href="javascript:void(0)" ng-click="chosenQuestion(qst.id)">
+        <p> {{ '{{qst.sentence}}' }} </p>
+    </a>
+</div>
+<div id='answer' ng-style="answerDivStyle">
+    <p> {{ '{{contr.answer}}' }} </p>
+</div>
