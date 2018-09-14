@@ -60,13 +60,16 @@ def build_dictionaries(clevr_dir):
     return ret
 
 
-def to_dictionary_indexes(dictionary, sentence):
+def to_dictionary_indexes(dictionary, sentence, ignore_unknown_words=False):
     """
     Outputs indexes of the dictionary corresponding to the words in the sequence.
     Case insensitive.
     """
     split = tokenize(sentence)
-    idxs = torch.LongTensor([dictionary[w] for w in split])
+    if ignore_unknown_words:
+        idxs = torch.LongTensor([dictionary[w] for w in split if w in dictionary])
+    else:
+        idxs = torch.LongTensor([dictionary[w] for w in split])
     return idxs
 
 def collate_samples_from_pixels(batch):

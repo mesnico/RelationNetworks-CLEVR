@@ -8,6 +8,7 @@ import utils
 import evaluate
 import os
 import json
+import traceback
 
 #TODO: put into configuration
 clevr_dir = '/media/nicola/26F0A7D2064A1E46/TESI/CLEVR_v1.0'
@@ -64,6 +65,14 @@ def load_questions():
 def compute_answer():
     qst_id = request.args.get('qstid')
     qst_id = int(qst_id)
-    return json.dumps(ev.evaluate(int(qst_id)))
+    sentence = request.args.get('sentence')
+    print('id: {}, sentence: {}'.format(qst_id, sentence))
+    try:
+        answ = ev.evaluate(int(qst_id), sentence)
+        answ = (*answ, 'ok')
+    except:
+        answ = '','','error'
+        print('Error: {}'.format(traceback.format_exc()))
+    return json.dumps(answ)
 
     

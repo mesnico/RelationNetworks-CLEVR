@@ -12,7 +12,7 @@ function getAbsOffset(el) {
 
 angular
 .module('AdvApp', ['infinite-scroll'])
-.controller('clevrImagesController', ['$scope', '$http', '$timeout', function($scope, $http, $timeout){
+.controller('clevrImagesController', ['$scope', '$http', '$timeout', '$sce', function($scope, $http, $timeout, $sce){
     var thiz = this;
     var queryChoice = -1;
     var questionChoice = -1;
@@ -25,6 +25,7 @@ angular
     var head = 0;
     var initialQueries = [2,4,7,9,14,15,16,18,19,21,22,23,25,26,33,35,37,38,40,42,44,45,47,48,50,51,52,55,56];
     var nextStop = maxLoadedImages;
+    var translate = true;
 
     //adjustAffixWidth();
 
@@ -104,7 +105,20 @@ angular
             url: '/requests/questions',
             method: 'GET',
             params: {imgid: id}}).then(function(response){
-                thiz.questions = response.data;
+                var rawquestions = response.data;
+                thiz.questions = [];
+                //translate if necessary
+                if (translate){
+                    for (i=0; i<rawquestions.length; i++){
+                        (function(inti){
+                            rawquestions[inti].sentence = rawquestions[inti].sentence.replace('left of', 'to the left of');
+                            $scope.translateQuestion(rawquestions[inti].sentence, function(data){
+                                rawquestions[inti].sentence = data.translatedText;
+                            }, 'en', 'it');
+                        })(i);
+                    }
+                }
+                thiz.questions = rawquestions;
                 questionChoice = response.data[0].id;  //the first question on this image      
             
             /*head = 0;
@@ -116,30 +130,99 @@ angular
         
     };
 
-    $scope.chosenQuestion = function(id) {
-        questionChoice = id;
-        $http({
-            url: '/requests/answer',
-            method: 'GET',
-            params: {qstid: id}}). then(function(response){
-                thiz.answer = response.data[0];
-                $scope.answerDivStyle = {'display': 'block'};  
-                if (response.data[0] == response.data[1]) {
-                    $scope.answerDivStyle = {'color': 'green'}; 
-                } else {
-                    $scope.answerDivStyle = {'color': 'red'};
-                }
-            $timeout(function(){
-                $scope.answerDivStyle = {'display': 'none'}; 
-            }, 2000);
-            /*head = 0;
-            nextStop = maxLoadedImages;
-            load();
-            thiz.loadMoreDisabled = false;*/
-            
-        });  
-    }      
+    $scope.inputValue = null;
+    $scope.sendQuestion = function(qst, is_id) {
+        if (is_id){
+            questionChoice = qst;
+            params = {qstid: qst};
+        } else {
+            params = {sentence: qst, qstid: questionChoice};
+        }
         
+        var makeQueryRequest = function(params){ 
+            $http({
+                url: '/requests/answer',
+                method: 'GET',
+                params: params}). then(function(response){
+                    $scope.answerDivStyle = {'display': 'block'};
+                    if (response.data[2] == 'error'){
+                        $scope.answerDivStyle = {'color': 'red'};
+                        thiz.answer = (translate) ? 'Mi dispiace, non ho capito la domanda' : "I'm sorry, cannot understand the question";
+                    } else {
+                        if (translate){
+                            thiz.answer = $scope.translateAnswer(response.data[0]);
+                        } else {
+                            thiz.answer = response.data[0];
+                        }
+                        /*if (is_id){  
+                            if (response.data[0] == response.data[1]) {
+                                $scope.answerDivStyle = {'color': 'green'}; 
+                            } else {
+                                $scope.answerDivStyle = {'color': 'red'};
+                            }
+                        }*/
+                    }
+                $timeout(function(){
+                    $scope.answerDivStyle = {'display': 'none'}; 
+                }, 2000);
+                /*head = 0;
+                nextStop = maxLoadedImages;
+                load();
+                thiz.loadMoreDisabled = false;*/
+                
+            });
+        }
+
+        if (translate && !is_id){ 
+            $scope.translateQuestion(params.sentence, function(data){
+                params.sentence = data.translatedText;
+                makeQueryRequest(params);
+            }, 'it', 'en');
+        } else {
+            makeQueryRequest(params);
+        }
+          
+    }
+
+    $scope.translateQuestion = function(text,callback,sourceLang,targetLang) {
+        var translateAPIURL = $sce.trustAsResourceUrl('https://script.google.com/macros/s/AKfycbwaJoJiJdAEgYLRgBkFoPo2tx9HhM6PLM_y6fWNfHVIMy7_JMIk/exec')
+        //make a jsonp request to the translate webapp
+        $http.jsonp(
+            translateAPIURL,
+            {jsonpCallbackParam: 'callback', params:{q: text, source:sourceLang, target:targetLang}}
+        ).then(function(data){
+            callback(data.data);
+        });
+    }
+
+    $scope.translateAnswer = function(answer) {
+        var dict = {
+            large: 'grande',
+            small: 'piccolo',
+            rubber: 'di gomma',
+            metal: 'di metallo',
+            gray: 'grigio',
+            blue: 'blu',
+            brown: 'marrone',
+            yellow: 'giallo',
+            purple: 'viola',
+            green: 'verde',
+            cyan: 'azzurro',
+            red: 'rosso',
+            sphere: 'una sfera',
+            cude: 'un cubo',
+            cylinder: 'un cilindro',
+            yes: 'sì',
+            no: 'no' 
+        };
+
+        if (answer in dict){
+            return dict[answer];
+        } else {
+            return answer;
+        }
+    }
+
     thiz.loadMore = function() {
         if (head > nextStop){
             thiz.loadMoreDisabled = true;

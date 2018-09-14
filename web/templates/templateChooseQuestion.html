@@ -1,8 +1,18 @@
-<div ng-repeat='qst in contr.questions'>
-    <a href="javascript:void(0)" ng-click="chosenQuestion(qst.id)">
-        <p> {{ '{{qst.sentence}}' }} </p>
-    </a>
-</div>
+<form>
+    <div class="form-group">
+        <label for="question">La tua domanda?</label>
+        <input type="text" name="sentence" ng-model="inputValue" autocomplete="off"/>
+        <button ng-click="sendQuestion(inputValue,false)" class="btn btn-primary">Chiedi</button>
+    </div>
+</form>
+
+<div id='questions'>
+    <h2> Esempi di Domande </h2>
+    <div ng-repeat='qst in contr.questions'>
+        <a href="javascript:void(0)" ng-click="sendQuestion(qst.id,true)">
+            <p> {{ '{{qst.sentence}}' }} </p>
+        </a>
+    </div>
 <div id='answer' ng-style="answerDivStyle">
     <p> {{ '{{contr.answer}}' }} </p>
 </div>
