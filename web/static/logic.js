@@ -26,6 +26,8 @@ angular
     var initialQueries = [2,4,7,9,14,15,16,18,19,21,22,23,25,26,33,35,37,38,40,42,44,45,47,48,50,51,52,55,56];
     var nextStop = maxLoadedImages;
     var translate = true;
+    var selectedQuestion = "";
+    var recognition = null;
 
     //adjustAffixWidth();
 
@@ -51,6 +53,38 @@ angular
         }
         head += toLoad;
     }
+
+    function startRecognition() {
+        recognition = new webkitSpeechRecognition();
+        recognition.lang = (translate) ? "it" : "en";
+        recognition.continuous = true;
+        recognition.onresult = function (event) {
+            var transcripted = "";
+            for (var i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    console.log(event.results[i][0].transcript);
+                    console.log('###-');
+                    transcripted = transcripted.concat(event.results[i][0].transcript);
+                }
+            }
+            transcripted.concat('?')
+            $scope.sendQuestion(transcripted);
+        };
+        recognition.onerror = function(event) {
+            if (event.error == 'no-speech') {
+                //restart recognition
+                startRecognition();
+            }
+        };
+
+        recognition.start();
+    }
+
+    function stopRecognition() {
+        if (recognition!=null) recognition.stop();
+        recognition = null;
+    }
+
     load();
 
     $scope.linkDisabled = function() {
@@ -64,17 +98,18 @@ angular
         }
     }
     $scope.setAffixOffset = function() {
-        var init_off = 501;
+        var init_off = 625;
+        var off = getAbsOffset($( ".samples-container" )[ 0 ]);
         if (queryChoice>=0) {
             return 750 + 0.8*(off.top - init_off);
         } else {
-            var off = getAbsOffset($( ".samples-container" )[ 0 ]);
             return 510 + 0.8*(off.top - init_off);
         }
     }
 
     $scope.queryChoice = function() {
         $scope.template = 'templateChooseImage.html';
+        stopRecognition();
         queryChoice = -1; 
         thiz.loadedData = [];
         nextStop = maxLoadedImages;
@@ -119,7 +154,10 @@ angular
                     }
                 }
                 thiz.questions = rawquestions;
-                questionChoice = response.data[0].id;  //the first question on this image      
+                questionChoice = response.data[0].id;  //the first question on this image 
+
+                //start speech recognition
+                startRecognition();     
             
             /*head = 0;
             nextStop = maxLoadedImages;
@@ -130,23 +168,39 @@ angular
         
     };
 
+    $scope.fillQuestionInput = function(qst_id) {
+        var qst = "";
+        //find the question having qst_id. TODO: actually, inefficient implementation
+        for (var i=0; i<thiz.questions.length; i++){
+            if (thiz.questions[i].id == qst_id){
+                qst = thiz.questions[i].sentence;
+            }
+        }
+        $scope.inputValue = qst;
+        selectedQuestion = qst;
+        questionChoice = qst_id;
+    }
+
     $scope.inputValue = null;
-    $scope.sendQuestion = function(qst, is_id) {
-        if (is_id){
-            questionChoice = qst;
-            params = {qstid: qst};
+    $scope.sendQuestion = function(qst) {
+        if (selectedQuestion == qst){
+            //the query was not modified by the user
+            params = {qstid: questionChoice};
+            is_id = true;
         } else {
             params = {sentence: qst, qstid: questionChoice};
+            is_id = false;
         }
         
         var makeQueryRequest = function(params){ 
+            $scope.loadingAnswer = true;
             $http({
                 url: '/requests/answer',
                 method: 'GET',
                 params: params}). then(function(response){
-                    $scope.answerDivStyle = {'display': 'block'};
+                    $scope.answerReady = true;
+                    $scope.answerDivStyle = {'width': '90%'};
                     if (response.data[2] == 'error'){
-                        $scope.answerDivStyle = {'color': 'red'};
                         thiz.answer = (translate) ? 'Mi dispiace, non ho capito la domanda' : "I'm sorry, cannot understand the question";
                     } else {
                         if (translate){
@@ -163,7 +217,9 @@ angular
                         }*/
                     }
                 $timeout(function(){
-                    $scope.answerDivStyle = {'display': 'none'}; 
+                    $scope.answerDivStyle = {};
+                    $scope.answerReady = false;
+                    $scope.loadingAnswer = false;
                 }, 2000);
                 /*head = 0;
                 nextStop = maxLoadedImages;
@@ -195,6 +251,16 @@ angular
         });
     }
 
+    /*$scope.translateQuestion = function(text,callback,sourceLang,targetLang) {
+        $http({
+                url: 'https://script.google.com/macros/s/AKfycbwaJoJiJdAEgYLRgBkFoPo2tx9HhM6PLM_y6fWNfHVIMy7_JMIk/exec',
+                method: 'GET',
+                params:{q: text, source:sourceLang, target:targetLang}}
+        ).then(function(data){
+            callback(data.data);
+        });
+    }*/
+
     $scope.translateAnswer = function(answer) {
         var dict = {
             large: 'grande',
@@ -220,6 +286,14 @@ angular
             return dict[answer];
         } else {
             return answer;
+        }
+    }
+
+    $scope.changeInputType = function(isTextual){
+        if (isTextual) {
+            stopRecognition();
+        } else {
+            startRecognition();
         }
     }
 

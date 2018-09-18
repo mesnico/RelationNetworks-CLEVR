@@ -1,18 +1,27 @@
 <form>
+    <div id="input-type">
+        <button ng-click="$parent.textual=!$parent.textual; changeInputType($parent.textual);"><i ng-class="($parent.textual) ? 'fa fa-microphone' : 'fa fa-keyboard-o'"></i></button>
+    </div>
     <div class="form-group">
         <label for="question">La tua domanda?</label>
-        <input type="text" name="sentence" ng-model="inputValue" autocomplete="off"/>
-        <button ng-click="sendQuestion(inputValue,false)" class="btn btn-primary">Chiedi</button>
+        <div ng-show="$parent.textual">
+            <input type="text" name="sentence" ng-model="$parent.inputValue" autocomplete="off"/>
+            <button ng-click="sendQuestion($parent.inputValue)" class="btn btn-primary">Chiedi</button>
+        </div>
+        <div ng-show="!$parent.textual">
+            <img id="record" src="static/recording1.gif" alt="Listening...">
+        </div>
     </div>
 </form>
 
 <div id='questions'>
     <h2> Esempi di Domande </h2>
     <div ng-repeat='qst in contr.questions'>
-        <a href="javascript:void(0)" ng-click="sendQuestion(qst.id,true)">
+        <a href="javascript:void(0)" ng-click="fillQuestionInput(qst.id)">
             <p> {{ '{{qst.sentence}}' }} </p>
         </a>
     </div>
-<div id='answer' ng-style="answerDivStyle">
-    <p> {{ '{{contr.answer}}' }} </p>
+<div id='answer' ng-show="loadingAnswer">
+    <img ng-show="!answerReady" src="static/loader2.gif" alt="Loading...">
+    <p ng-show="answerReady"> {{ '{{contr.answer}}' }} </p>
 </div>

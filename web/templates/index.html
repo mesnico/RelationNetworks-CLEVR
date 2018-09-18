@@ -36,6 +36,7 @@
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
     <!-- Optional theme -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <!-- Fonts! -->
     <link href="http://fonts.googleapis.com/css?family=Roboto:400,300" rel="stylesheet" type="text/css">
     <link rel="stylesheet" href="static/style.css">
@@ -45,15 +46,16 @@
         <h1>
             Sei abbastanza bravo a fare domande?
         </h1>
-        <p>
-            Metti alla prova il computer facendogli domande sul materiale o il colore di questi oggetti
-        </p>
+        <div id="logo">
+            <img src="static/question.png"/ alt="Domanda e risposta">
+            <p>Metti alla prova il computer facendogli domande sul materiale o il colore di questi oggetti</p>
+        </div>
 
         <div class="samples">
             <div ng-controller='clevrImagesController as contr' class="row text-center text-lg-left samples-container">
                 <div id='query-container' data-spy="affix" data-offset-top="{{ '{{setAffixOffset()}}' }}">
                     <div id='query-elem' ng-style="changeQueryDivStyle">
-                        <img class='img-thumbnail' ng-src='clevr-imgs/val/CLEVR_val_{{ '{{contr.queryChoicePadded}}' }}.png' id="query-img">
+                        <img class="img-thumbnail clevr-img" ng-src='clevr-imgs/val/CLEVR_val_{{ '{{contr.queryChoicePadded}}' }}.png' id="query-img">
                         <button type="button" class="btn btn-primary" ng-click="queryChoice()" id="query-btn">Cambia Immagine</button>
                     </div>
                     <div id='non-query-elem' ng-style="chooseQueryDivStyle">
@@ -65,8 +67,7 @@
         </div>
         
         <div class="acks">
-            <p>
-We gratefully acknowledge the support of NVIDIA Corporation with the donation of the Tesla K40 GPU used for this research.</p>
+            <p>Copyright &copy 2018 Nicola Messina</p>
         </div>
     </div>
 </body>

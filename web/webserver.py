@@ -43,6 +43,9 @@ app = Flask(__name__)
 def initial_page():
     return render_template('index.html')
 
+@app.route('/favicon.ico')
+def return_favicon():
+    return send_from_directory('.','favicon.ico', as_attachment=True)
 
 @app.route('/<string:page_name>')
 def static_pages(page_name):
