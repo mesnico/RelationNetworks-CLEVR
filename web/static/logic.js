@@ -25,7 +25,6 @@ angular
     var head = 0;
     var initialQueries = [2,4,7,9,14,15,16,18,19,21,22,23,25,26,33,35,37,38,40,42,44,45,47,48,50,51,52,55,56];
     var nextStop = maxLoadedImages;
-    var translate = true;
     var selectedQuestion = "";
     var recognition = null;
 
@@ -38,6 +37,7 @@ angular
     $scope.changeQueryDivStyle = {'display': 'none'};
     $scope.chooseQueryDivStyle = {'display': 'block'};
     $scope.template = 'templateChooseImage.html';
+    $scope.translate = true;
                             
     function load() {
         if(queryChoice < 0){
@@ -56,7 +56,7 @@ angular
 
     function startRecognition() {
         recognition = new webkitSpeechRecognition();
-        recognition.lang = (translate) ? "it" : "en";
+        recognition.lang = ($scope.translate) ? "it" : "en";
         recognition.continuous = true;
         recognition.onresult = function (event) {
             var transcripted = "";
@@ -67,17 +67,25 @@ angular
                     transcripted = transcripted.concat(event.results[i][0].transcript);
                 }
             }
-            transcripted.concat('?')
+            transcripted = transcripted.concat('?');
             $scope.sendQuestion(transcripted);
         };
         recognition.onerror = function(event) {
-            if (event.error == 'no-speech') {
-                //restart recognition
-                startRecognition();
-            }
+            $scope.$apply(function(){
+                $scope.recognizeOn = false;
+            });
+            console.log('Speech recognition error');
         };
 
+        recognition.onend = function() {
+            $scope.$apply(function(){
+                $scope.recognizeOn = false;
+            });
+            console.log('Speech recognition service disconnected');
+        }
+
         recognition.start();
+        $scope.recognizeOn = true;
     }
 
     function stopRecognition() {
@@ -86,6 +94,10 @@ angular
     }
 
     load();
+
+    $scope.startRecognition = function(){
+        startRecognition();
+    }
 
     $scope.linkDisabled = function() {
         return queryChoice>=0;
@@ -143,7 +155,7 @@ angular
                 var rawquestions = response.data;
                 thiz.questions = [];
                 //translate if necessary
-                if (translate){
+                if ($scope.translate){
                     for (i=0; i<rawquestions.length; i++){
                         (function(inti){
                             rawquestions[inti].sentence = rawquestions[inti].sentence.replace('left of', 'to the left of');
@@ -179,6 +191,8 @@ angular
         $scope.inputValue = qst;
         selectedQuestion = qst;
         questionChoice = qst_id;
+        $scope.textual=true;
+        $scope.$broadcast('questionSelected');
     }
 
     $scope.inputValue = null;
@@ -188,6 +202,7 @@ angular
             params = {qstid: questionChoice};
             is_id = true;
         } else {
+            qst = qst.replace('.',';');
             params = {sentence: qst, qstid: questionChoice};
             is_id = false;
         }
@@ -201,9 +216,9 @@ angular
                     $scope.answerReady = true;
                     $scope.answerDivStyle = {'width': '90%'};
                     if (response.data[2] == 'error'){
-                        thiz.answer = (translate) ? 'Mi dispiace, non ho capito la domanda' : "I'm sorry, cannot understand the question";
+                        thiz.answer = ($scope.translate) ? 'Mi dispiace, non ho capito la domanda' : "I'm sorry, cannot understand the question";
                     } else {
-                        if (translate){
+                        if ($scope.translate){
                             thiz.answer = $scope.translateAnswer(response.data[0]);
                         } else {
                             thiz.answer = response.data[0];
@@ -229,7 +244,7 @@ angular
             });
         }
 
-        if (translate && !is_id){ 
+        if ($scope.translate && !is_id){ 
             $scope.translateQuestion(params.sentence, function(data){
                 params.sentence = data.translatedText;
                 makeQueryRequest(params);
@@ -276,7 +291,7 @@ angular
             cyan: 'azzurro',
             red: 'rosso',
             sphere: 'una sfera',
-            cude: 'un cubo',
+            cube: 'un cubo',
             cylinder: 'un cilindro',
             yes: 'sì',
             no: 'no' 
@@ -325,4 +340,11 @@ angular
         element.attr('src', attr.imgFadeInOnload);
       }
     };
+})
+.directive('focusOn', function() {
+   return function(scope, elem, attr) {
+      scope.$on(attr.focusOn, function(e) {
+          elem[0].focus();
+      });
+   };
 });

@@ -1,21 +1,25 @@
 <form>
     <div id="input-type">
-        <button ng-click="$parent.textual=!$parent.textual; changeInputType($parent.textual);"><i ng-class="($parent.textual) ? 'fa fa-microphone' : 'fa fa-keyboard-o'"></i></button>
+        <button ng-click="$parent.textual=!$parent.textual; changeInputType($parent.textual);" type="button"><i ng-class="($parent.textual) ? 'fa fa-microphone' : 'fa fa-keyboard-o'"></i></button>
     </div>
     <div class="form-group">
         <label for="question">La tua domanda?</label>
         <div ng-show="$parent.textual">
-            <input type="text" name="sentence" ng-model="$parent.inputValue" autocomplete="off"/>
-            <button ng-click="sendQuestion($parent.inputValue)" class="btn btn-primary">Chiedi</button>
+            <input type="text" name="sentence" ng-model="$parent.inputValue" autocomplete="off" focus-on="questionSelected"/>
+            <button ng-click="sendQuestion($parent.inputValue)" class="btn btn-primary" type="submit">Chiedi</button>
         </div>
         <div ng-show="!$parent.textual">
-            <img id="record" src="static/recording1.gif" alt="Listening...">
+            <button ng-show="!$parent.recognizeOn" ng-click="startRecognition()" type="submit"><i class="fa fa-microphone"></i></button>
+            <img ng-show="$parent.recognizeOn" id="record" src="static/recording1.gif" alt="Listening...">
         </div>
     </div>
 </form>
 
 <div id='questions'>
-    <h2> Esempi di Domande </h2>
+    <div class='title'>
+        <h2> Esempi di Domande </h2>
+        <span ng-show="translate"> (Traduzione automatica dall'inglese) </span>
+    </div>
     <div ng-repeat='qst in contr.questions'>
         <a href="javascript:void(0)" ng-click="fillQuestionInput(qst.id)">
             <p> {{ '{{qst.sentence}}' }} </p>

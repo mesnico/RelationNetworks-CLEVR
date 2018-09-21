@@ -25,6 +25,7 @@ h1 { text-align: center; margin-top: 20px; padding: 0px; }
     margin-bottom: 10px;
     width: 100%;
     min-width: 100px;
+    display: block;
 }
 
 #answer {
@@ -32,8 +33,8 @@ h1 { text-align: center; margin-top: 20px; padding: 0px; }
     bottom: 30%;
     padding-left: 10px;
     padding-right: 10px;
-    width: 30%;
-    margin-left: 29%;
+    width: 29%;
+    margin-left: 30%;
     background-color: #f1f1f1fa;
     box-shadow: 0 5px 10px 0 rgba(0,0,0,0.16),0 5px 20px 0 rgba(0,0,0,0.12) !important;
     border: 4px;
@@ -64,6 +65,7 @@ h1 { text-align: center; margin-top: 20px; padding: 0px; }
 .affix #query-img {
     width: 50%;
     margin-bottom: 0px;
+    display: inline;
 }
 .affix #query-elem {
     margin-top: 5px;
@@ -74,7 +76,7 @@ h1 { text-align: center; margin-top: 20px; padding: 0px; }
     display: none;
 }
 .affix + .more-padding {
-    padding-top: 180px;
+    padding-top: 300px;
 }
 .affix + .less-padding {
     padding-top: 70px;
@@ -156,15 +158,14 @@ input {
     display: block;
 }
 
-#logo {
-    width: 100%;
-    text-align: center;
-    padding: 0px;
-}
 #logo img {
-    display: block;
     margin: 0 auto;
     width: 10%;
+    margin-left: 15px;
+}
+
+#logo+p {
+    text-align: center;
 }
 
 #record {
@@ -177,6 +178,11 @@ input {
     -o-filter: brightness(1.4);
     -ms-filter: brightness(1.4);
     filter: brightness(1.4);
+}
+
+.title {
+    justify-content: center;
+    margin-bottom: 20px;
 }
     
     
