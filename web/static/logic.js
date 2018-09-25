@@ -57,7 +57,7 @@ angular
     function startRecognition() {
         recognition = new webkitSpeechRecognition();
         recognition.lang = ($scope.translate) ? "it" : "en";
-        recognition.continuous = true;
+        recognition.continuous = false;
         recognition.onresult = function (event) {
             var transcripted = "";
             for (var i = event.resultIndex; i < event.results.length; ++i) {
@@ -264,6 +264,7 @@ angular
                     $scope.answerDivStyle = {};
                     $scope.answerReady = false;
                     $scope.loadingAnswer = false;
+                    startRecognition();
                 }, 2000);
                 /*head = 0;
                 nextStop = maxLoadedImages;
