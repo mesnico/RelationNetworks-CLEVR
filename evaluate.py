@@ -221,7 +221,7 @@ class Evaluator():
         sample = next(islice(self.clevr_test_loader, sample_idx, sample_idx+1))
         
         if handwritten_qst:
-            sample['question'] = utils.to_dictionary_indexes(self.dictionaries[0], question, False).unsqueeze(0)
+            sample['question'] = utils.to_dictionary_indexes(self.dictionaries[0], question, True).unsqueeze(0)
 
         img, qst, label = utils.load_tensor_data(sample, self.args.cuda, self.args.invert_questions, volatile=True)
         

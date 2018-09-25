@@ -158,7 +158,8 @@ angular
                 if ($scope.translate){
                     for (i=0; i<rawquestions.length; i++){
                         (function(inti){
-                            rawquestions[inti].sentence = rawquestions[inti].sentence.replace('left of', 'to the left of');
+                            //rawquestions[inti].sentence = rawquestions[inti].sentence.replace('left of', 'to the left of');
+                            rawquestions[inti].sentence = toUIPreTranslationProcessing(rawquestions[inti].sentence);
                             $scope.translateQuestion(rawquestions[inti].sentence, function(data){
                                 rawquestions[inti].sentence = data.translatedText;
                             }, 'en', 'it');
@@ -166,10 +167,7 @@ angular
                     }
                 }
                 thiz.questions = rawquestions;
-                questionChoice = response.data[0].id;  //the first question on this image 
-
-                //start speech recognition
-                startRecognition();     
+                questionChoice = response.data[0].id;  //the first question on this image  
             
             /*head = 0;
             nextStop = maxLoadedImages;
@@ -195,6 +193,37 @@ angular
         $scope.$broadcast('questionSelected');
     }
 
+    function toNetPostTranslationProcessing(sentence){
+        var proc;
+        proc = sentence.replace('.',';');
+        proc = proc.replace('colour','color');
+        proc = proc.replace(/which/i,'what');
+        proc = proc.replace('opaque','rubber');
+        proc = proc.replace(/there\'s/i,'there is');
+        proc = proc.replace('violet','purple');
+        proc = proc.replace(/dimension.?/,'size');
+        proc = proc.replace(' bright ',' metal ');
+        //proc = proc.replace(/viola/i,'purple');
+        proc = proc.replace('besides','other than');
+        proc = proc.replace('the one','that');
+        proc = proc.replace(' all ',' ');
+        proc = proc.replace(' some ',' ');
+        return proc;
+    }
+
+    function toNetPreTranslationProcessing(sentence){
+        var proc;
+        proc = sentence.replace(/azzurr./,'ciano');
+        return proc;
+    }
+
+    function toUIPreTranslationProcessing(sentence){
+        var proc;
+        proc = sentence.replace(/(?<!to the )left of/,'to the left of');
+        proc = proc.replace(/(?<!to the )right of/,'to the right of');
+        return proc;
+    } 
+
     $scope.inputValue = null;
     $scope.sendQuestion = function(qst) {
         if (selectedQuestion == qst){
@@ -202,13 +231,13 @@ angular
             params = {qstid: questionChoice};
             is_id = true;
         } else {
-            qst = qst.replace('.',';');
             params = {sentence: qst, qstid: questionChoice};
             is_id = false;
         }
         
+        $scope.loadingAnswer = true;
+
         var makeQueryRequest = function(params){ 
-            $scope.loadingAnswer = true;
             $http({
                 url: '/requests/answer',
                 method: 'GET',
@@ -244,9 +273,11 @@ angular
             });
         }
 
-        if ($scope.translate && !is_id){ 
-            $scope.translateQuestion(params.sentence, function(data){
-                params.sentence = data.translatedText;
+        if ($scope.translate && !is_id){
+            var preproc = toNetPreTranslationProcessing(params.sentence);
+            preproc = preproc.toLowerCase();
+            $scope.translateQuestion(preproc, function(data){
+                params.sentence = toNetPostTranslationProcessing(data.translatedText);
                 makeQueryRequest(params);
             }, 'it', 'en');
         } else {

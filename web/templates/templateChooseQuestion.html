@@ -9,7 +9,7 @@
             <button ng-click="sendQuestion($parent.inputValue)" class="btn btn-primary" type="submit">Chiedi</button>
         </div>
         <div ng-show="!$parent.textual">
-            <button ng-show="!$parent.recognizeOn" ng-click="startRecognition()" type="submit"><i class="fa fa-microphone"></i></button>
+            <button class="rec" ng-show="!$parent.recognizeOn" ng-click="startRecognition()" type="submit"><i class="fa fa-microphone"></i></button>
             <img ng-show="$parent.recognizeOn" id="record" src="static/recording1.gif" alt="Listening...">
         </div>
     </div>
@@ -25,6 +25,8 @@
             <p> {{ '{{qst.sentence}}' }} </p>
         </a>
     </div>
+</div>
+
 <div id='answer' ng-show="loadingAnswer">
     <img ng-show="!answerReady" src="static/loader2.gif" alt="Loading...">
     <p ng-show="answerReady"> {{ '{{contr.answer}}' }} </p>

@@ -30,11 +30,12 @@ h1 { text-align: center; margin-top: 20px; padding: 0px; }
 
 #answer {
     position: fixed;
-    bottom: 30%;
     padding-left: 10px;
     padding-right: 10px;
     width: 29%;
-    margin-left: 30%;
+    left: 50%;
+    top: 70%;
+    transform: translate(-50%, -70%);
     background-color: #f1f1f1fa;
     box-shadow: 0 5px 10px 0 rgba(0,0,0,0.16),0 5px 20px 0 rgba(0,0,0,0.12) !important;
     border: 4px;
@@ -141,6 +142,9 @@ form {
     box-shadow: 0 2px 4px 0 rgba(0,0,0,0.16),0 2px 10px 0 rgba(0,0,0,0.12) !important;
     margin-left: 15px;
     margin-bottom: 15px;
+    display: block;
+    float: left;
+    width: 38%;
 }
 
 .form-group {
@@ -184,5 +188,16 @@ input {
     justify-content: center;
     margin-bottom: 20px;
 }
-    
+   
+#questions{
+    float: right;
+    width: 58%;
+    padding: 0px 2% 0px 2%;
+
+}
+
+.rec {
+    width: 50px;
+    height: 50px;
+}
     
