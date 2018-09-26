@@ -180,6 +180,7 @@ angular
 
     $scope.fillQuestionInput = function(qst_id) {
         var qst = "";
+        stopRecognition();
         //find the question having qst_id. TODO: actually, inefficient implementation
         for (var i=0; i<thiz.questions.length; i++){
             if (thiz.questions[i].id == qst_id){
@@ -206,6 +207,7 @@ angular
         //proc = proc.replace(/viola/i,'purple');
         proc = proc.replace('besides','other than');
         proc = proc.replace('the one','that');
+        proc = proc.replace(/\b(?:one|two|three|four|five|six|seven|eight|nine|ten)\b/,'');
         proc = proc.replace(' all ',' ');
         proc = proc.replace(' some ',' ');
         return proc;
@@ -224,6 +226,41 @@ angular
         return proc;
     } 
 
+    function showAnswer(answer){
+        $scope.answerReady = true;
+        //$scope.answerDivStyle = {'width': '90%'};
+        thiz.answer = answer;
+        $timeout(function(){
+            $scope.answerDivStyle = {};
+            $scope.answerReady = false;
+            $scope.loadingAnswer = false;
+            if (!$scope.textual){
+                startRecognition();
+            }
+        }, 2000);
+    }
+
+    function funnyResponse(question){
+        var answer = null;
+        var badItWords = ['stronzo','stupido','bastardo','coglione','fanculo'];
+        var chunks = question.split(" ");
+        for (var i=0; i<chunks.length; i++){
+            if (badItWords.includes(chunks[i])){
+                answer = 'Stai tranquillo';
+            }
+        }
+
+        if (chunks.includes('ciao')){
+            answer = 'Ciao';
+        }
+        
+        if (chunks.includes('massoli')){
+            answer = 'Massoli... attenzione...';
+        }
+
+        return answer;
+    }
+
     $scope.inputValue = null;
     $scope.sendQuestion = function(qst) {
         if (selectedQuestion == qst){
@@ -238,19 +275,19 @@ angular
         $scope.loadingAnswer = true;
 
         var makeQueryRequest = function(params){ 
+            var answer;
             $http({
                 url: '/requests/answer',
                 method: 'GET',
                 params: params}). then(function(response){
-                    $scope.answerReady = true;
-                    $scope.answerDivStyle = {'width': '90%'};
+                    
                     if (response.data[2] == 'error'){
-                        thiz.answer = ($scope.translate) ? 'Mi dispiace, non ho capito la domanda' : "I'm sorry, cannot understand the question";
+                        answer = ($scope.translate) ? 'Mi dispiace, non ho capito la domanda' : "I'm sorry, cannot understand the question";
                     } else {
                         if ($scope.translate){
-                            thiz.answer = $scope.translateAnswer(response.data[0]);
+                            answer = $scope.translateAnswer(response.data[0]);
                         } else {
-                            thiz.answer = response.data[0];
+                            answer = response.data[0];
                         }
                         /*if (is_id){  
                             if (response.data[0] == response.data[1]) {
@@ -260,27 +297,22 @@ angular
                             }
                         }*/
                     }
-                $timeout(function(){
-                    $scope.answerDivStyle = {};
-                    $scope.answerReady = false;
-                    $scope.loadingAnswer = false;
-                    startRecognition();
-                }, 2000);
-                /*head = 0;
-                nextStop = maxLoadedImages;
-                load();
-                thiz.loadMoreDisabled = false;*/
-                
-            });
+                    showAnswer(answer);
+                });
         }
 
         if ($scope.translate && !is_id){
             var preproc = toNetPreTranslationProcessing(params.sentence);
             preproc = preproc.toLowerCase();
-            $scope.translateQuestion(preproc, function(data){
-                params.sentence = toNetPostTranslationProcessing(data.translatedText);
-                makeQueryRequest(params);
-            }, 'it', 'en');
+            var funny = funnyResponse(preproc);
+            if (funny != null){
+                showAnswer(funny);
+            } else {
+                $scope.translateQuestion(preproc, function(data){
+                    params.sentence = toNetPostTranslationProcessing(data.translatedText);
+                    makeQueryRequest(params);
+                }, 'it', 'en');
+            }
         } else {
             makeQueryRequest(params);
         }
