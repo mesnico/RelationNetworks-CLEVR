@@ -58,17 +58,29 @@ angular
         recognition = new webkitSpeechRecognition();
         recognition.lang = ($scope.translate) ? "it" : "en";
         recognition.continuous = false;
+        recognition.interimResults = true;
         recognition.onresult = function (event) {
             var transcripted = "";
+            $scope.interimText = "sai";
+            if (typeof(event.results) == 'undefined') {
+                stopRecognition();
+                return;
+            }
             for (var i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
                     console.log(event.results[i][0].transcript);
                     console.log('###-');
                     transcripted = transcripted.concat(event.results[i][0].transcript);
+                    transcripted = transcripted.concat('?');
+                    $scope.interimText = transcripted;
+                    $scope.sendQuestion(transcripted);
+                    //canDeleteInterim = true;
+                } else {
+                    //if (canDeleteInterim) $scope.interimText = "";
+                    $scope.interimText += event.results[i][0].transcript;
+                    console.log($scope.interimText);
                 }
             }
-            transcripted = transcripted.concat('?');
-            $scope.sendQuestion(transcripted);
         };
         recognition.onerror = function(event) {
             $scope.$apply(function(){
@@ -201,6 +213,7 @@ angular
         proc = proc.replace(/which/i,'what');
         proc = proc.replace('opaque','rubber');
         proc = proc.replace(/there\'s/i,'there is');
+        proc = proc.replace(/what\'s/i,'what is');
         proc = proc.replace('violet','purple');
         proc = proc.replace(/dimension.?/,'size');
         proc = proc.replace(' bright ',' metal ');
@@ -242,7 +255,8 @@ angular
 
     function funnyResponse(question){
         var answer = null;
-        var badItWords = ['stronzo','stupido','bastardo','coglione','fanculo'];
+        question = question.replace('?','');
+        var badItWords = ['stronzo','scemo','stupido','bastardo','coglione','fanculo','mamma','ohi','ehi','ei','oi'];
         var chunks = question.split(" ");
         for (var i=0; i<chunks.length; i++){
             if (badItWords.includes(chunks[i])){
@@ -250,12 +264,28 @@ angular
             }
         }
 
+        if (question.search(/\*+/)>=0){
+            answer = 'Stai tranquillo';
+        }
+
         if (chunks.includes('ciao')){
             answer = 'Ciao';
         }
         
-        if (chunks.includes('massoli')){
+        if (chunks.includes('mazzoli') || chunks.includes('massoli')){
             answer = 'Massoli... attenzione...';
+        }
+
+        if (chunks.includes('bravo')){
+            answer = 'grazie';
+        }
+
+        if (chunks.includes('siri')){
+            answer = 'Ho ucciso Siri';
+        } 
+
+        if (chunks.includes('senso') && chunks.includes('vita')){
+            answer = '42';
         }
 
         return answer;
