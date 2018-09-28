@@ -19,7 +19,7 @@ h1 { text-align: center; margin-top: 20px; padding: 0px; }
 }
 .acks {
     height: 200px;
-    padding-top:160px;
+    padding-top:300px;
 }
 #query-img {
     margin-bottom: 10px;
@@ -64,7 +64,7 @@ h1 { text-align: center; margin-top: 20px; padding: 0px; }
 }
 
 .affix #query-img {
-    width: 50%;
+    width: 75%;
     margin-bottom: 0px;
     display: inline;
 }
@@ -74,7 +74,7 @@ h1 { text-align: center; margin-top: 20px; padding: 0px; }
 }
 
 .affix #query-btn {
-    display: none;
+    
 }
 .affix + .more-padding {
     padding-top: 300px;
@@ -172,6 +172,11 @@ input {
     text-align: center;
 }
 
+@keyframes button-bump {
+    from { background-color: #fff; }
+    to { background-color: #83cbec; }    
+}
+
 #record {
     width: 64px;
 }
@@ -199,5 +204,10 @@ input {
 .rec {
     width: 50px;
     height: 50px;
+    animation-name: button-bump;
+    animation-duration: 0.7s;
+    animation-iteration-count: infinite; 
+    animation-direction: alternate;
+    animation-timing-function: linear;
 }
     
