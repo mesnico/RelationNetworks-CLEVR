@@ -9,8 +9,8 @@
             <button ng-click="sendQuestion($parent.inputValue)" class="btn btn-primary" type="submit">Chiedi</button>
         </div>
         <div ng-show="!$parent.textual">
-            <button class="rec" ng-show="!$parent.recognizeOn" ng-click="startRecognition()" type="submit"><i class="fa fa-microphone"></i></button>
-            <img ng-show="$parent.recognizeOn" id="record" src="static/recording1.gif" alt="Listening...">
+            <button class="rec" ng-show="!($parent.recognizeOn || $parent.loadingAnswer)" ng-click="startRecognition()" type="submit"><i class="fa fa-microphone"></i></button>
+            <img ng-show="$parent.recognizeOn || $parent.loadingAnswer" id="record" src="static/recording1.gif" alt="Listening...">
             <p ng-bind="$parent.interimText"></p>
         </div>
     </div>

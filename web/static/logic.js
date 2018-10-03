@@ -54,6 +54,7 @@ angular
         head += toLoad;
     }
 
+    var recognitionEnd = false;
     function startRecognition() {
         recognition = new webkitSpeechRecognition();
         recognition.lang = ($scope.translate) ? "it" : "en";
@@ -61,7 +62,7 @@ angular
         recognition.interimResults = true;
         recognition.onresult = function (event) {
             var transcripted = "";
-            $scope.interimText = "sai";
+            $scope.interimText = "";
             if (typeof(event.results) == 'undefined') {
                 stopRecognition();
                 return;
@@ -74,10 +75,14 @@ angular
                     transcripted = transcripted.concat('?');
                     $scope.interimText = transcripted;
                     $scope.sendQuestion(transcripted);
+                    recognitionEnd = true;
                     //canDeleteInterim = true;
                 } else {
                     //if (canDeleteInterim) $scope.interimText = "";
-                    $scope.interimText += event.results[i][0].transcript;
+                    $scope.$apply(function(){
+                        $scope.interimText += event.results[i][0].transcript;
+                    });
+                    
                     console.log($scope.interimText);
                 }
             }
@@ -91,6 +96,11 @@ angular
 
         recognition.onend = function() {
             $scope.$apply(function(){
+                /*if (recognitionEnd){
+                    $scope.recognizeOn = false;
+                } else {
+                    startRecognition();
+                }*/
                 $scope.recognizeOn = false;
             });
             console.log('Speech recognition service disconnected');
@@ -159,6 +169,9 @@ angular
         $scope.changeQueryDivStyle = {};
         $scope.chooseQueryDivStyle = {'display': 'none'};
         $scope.template = 'templateChooseQuestion.html';
+        if (!$scope.textual){
+            startRecognition();
+        }
 
         $http({
             url: '/requests/questions',
@@ -248,6 +261,7 @@ angular
             $scope.answerReady = false;
             $scope.loadingAnswer = false;
             if (!$scope.textual){
+                recognitionEnd = false;
                 startRecognition();
             }
         }, 2000);
@@ -293,6 +307,10 @@ angular
 
     $scope.inputValue = null;
     $scope.sendQuestion = function(qst) {
+        //abort if empty text-box
+        if (qst==null || qst.length==0){
+            return;
+        }
         if (selectedQuestion == qst){
             //the query was not modified by the user
             params = {qstid: questionChoice};
@@ -402,7 +420,7 @@ angular
         if (isTextual) {
             stopRecognition();
         } else {
-            startRecognition();
+            //startRecognition();
         }
     }
 
