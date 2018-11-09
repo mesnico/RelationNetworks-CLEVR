@@ -36,11 +36,10 @@ def train(data, model, optimizer, epoch, args):
     n_batches = 0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
-        img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions)
-
+        img, qst, label, qst_len = utils.load_tensor_data(sample_batched, args.cuda)
         # forward and backward pass
         optimizer.zero_grad()
-        output = model(img, qst)
+        output = model(img, qst, qst_len)
         loss = F.nll_loss(output, label)
         loss.backward()
 
@@ -51,8 +50,8 @@ def train(data, model, optimizer, epoch, args):
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss=loss.data[0]))
-        avg_loss += loss.data[0]
+        progress_bar.set_postfix(dict(loss=loss.data.item()))
+        avg_loss += loss.data.item()
         n_batches += 1
 
         if batch_idx % args.log_interval == 0:
@@ -99,18 +98,18 @@ def test(data, model, epoch, dictionaries, args):
     avg_loss = 0.0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
-        img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
+        img, qst, label, qst_len = utils.load_tensor_data(sample_batched, args.cuda, volatile=True)
         
-        output = model(img, qst)
+        output = model(img, qst, qst_len)
         pred = output.data.max(1)[1]
 
         loss = F.nll_loss(output, label)
 
         # compute per-class accuracy
-        pred_class = [dictionaries[2][o+1] for o in pred]
-        real_class = [dictionaries[2][o+1] for o in label.data]
+        pred_class = [dictionaries[2][o.item()+1] for o in pred]
+        real_class = [dictionaries[2][o.item()+1] for o in label.data]
         for idx,rc in enumerate(real_class):
-            class_corrects[rc] += (pred[idx] == label.data[idx])
+            class_corrects[rc] += (pred[idx].item() == label.data[idx].item())
             class_n_samples[rc] += 1
 
         for pc, rc in zip(pred_class,real_class):
@@ -121,13 +120,13 @@ def test(data, model, epoch, dictionaries, args):
             confusion_matrix_pred.append(sorted_classes.index(p))
         
         # compute global accuracy
-        corrects += (pred == label.data).sum()
+        corrects += (pred == label.data).sum().item()
         assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
         invalids = sum(class_invalids.values())
         n_samples += len(label)
         assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
         
-        avg_loss += loss.data[0]
+        avg_loss += loss.data.item()
 
         if batch_idx % args.log_interval == 0:
             accuracy = corrects / n_samples
@@ -180,7 +179,7 @@ def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, s
                                        shuffle=False, collate_fn=utils.collate_samples_state_description)
     return clevr_train_loader, clevr_test_loader
 
-def initialize_dataset(clevr_dir, dictionaries, state_description=True):
+def initialize_dataset(clevr_dir, dictionaries, state_description=True, invert_questions=True):
     if not state_description:
         train_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                            transforms.Pad(8),
@@ -190,12 +189,12 @@ def initialize_dataset(clevr_dir, dictionaries, state_description=True):
         test_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                           transforms.ToTensor()])
                                           
-        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms, ALL_IN_MEMORY_CACHE)
-        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms, ALL_IN_MEMORY_CACHE)
+        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, invert_questions, train_transforms, ALL_IN_MEMORY_CACHE)
+        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, invert_questions, test_transforms, ALL_IN_MEMORY_CACHE)
         
     else:
-        clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries, ALL_IN_MEMORY_CACHE)
-        clevr_dataset_test = ClevrDatasetStateDescription(clevr_dir, False, dictionaries, ALL_IN_MEMORY_CACHE)
+        clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries, invert_questions, ALL_IN_MEMORY_CACHE)
+        clevr_dataset_test = ClevrDatasetStateDescription(clevr_dir, False, dictionaries, invert_questions, ALL_IN_MEMORY_CACHE)
     
     return clevr_dataset_train, clevr_dataset_test 
         
@@ -238,13 +237,14 @@ def main(args):
     torch.manual_seed(args.seed)
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
+        print('Cuda visible devices: {}'.format(torch.cuda.device_count()))
 
     print('Building word dictionaries from all the words in the dataset...')
     dictionaries = utils.build_dictionaries(args.clevr_dir)
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
-    clevr_dataset_train, clevr_dataset_test  = initialize_dataset(args.clevr_dir, dictionaries, hyp['state_description'])
+    clevr_dataset_train, clevr_dataset_test  = initialize_dataset(args.clevr_dir, dictionaries, hyp['state_description'], args.invert_questions)
     print('CLEVR dataset initialized!')
 
     # Build the model
@@ -270,7 +270,7 @@ def main(args):
             checkpoint, optimizer_chkp = torch.load(filename)
 
             #removes 'module' from dict entries, pytorch bug #3805
-            checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
+            #checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
             model.load_state_dict(checkpoint)
             optimizer.load_state_dict(optimizer_chkp)
@@ -324,7 +324,7 @@ def main(args):
 
         # perform a full training
 
-        es = EarlyStopping()
+        es = EarlyStopping(patience=50)
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
         scheduler.last_epoch = start_epoch

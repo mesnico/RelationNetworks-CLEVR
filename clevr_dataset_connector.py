@@ -10,7 +10,7 @@ import utils
 import torch
 
 class ClevrDataset(Dataset):
-    def __init__(self, clevr_dir, train, dictionaries, transform=None, all_in_memory=False):
+    def __init__(self, clevr_dir, train, dictionaries, invert_questions, transform=None, all_in_memory=False):
         """
         Args:
             clevr_dir (string): Root directory of CLEVR dataset
@@ -30,6 +30,7 @@ class ClevrDataset(Dataset):
         self.clevr_dir = clevr_dir
         self.transform = transform
         self.dictionaries = dictionaries
+        self.invert_questions = invert_questions
     
     def answer_weights(self):
         n = float(len(self.questions))
@@ -45,8 +46,8 @@ class ClevrDataset(Dataset):
         img_filename = os.path.join(self.img_dir, current_question['image_filename'])
         image = Image.open(img_filename).convert('RGB')
 
-        question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'])
-        answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'])
+        question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'], self.invert_questions)
+        answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'], False)
         '''if self.dictionaries[2][answer[0]]=='color':
             image = Image.open(img_filename).convert('L')
             image = numpy.array(image)
@@ -62,7 +63,7 @@ class ClevrDataset(Dataset):
         return sample                
 
 class ClevrDatasetStateDescription(Dataset):
-    def __init__(self, clevr_dir, train, dictionaries, all_in_memory=False):
+    def __init__(self, clevr_dir, train, dictionaries, invert_questions, all_in_memory=False):
         
         if train:
             quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
@@ -94,7 +95,8 @@ class ClevrDatasetStateDescription(Dataset):
 
         self.questions = utils.JsonCache(quest_json_filename, 'questions', all_in_memory)
         self.objects = utils.JsonCache(scene_json_filename, 'scenes', all_in_memory, json_cook_function=get_objects)             
-                
+        
+        self.invert_questions = invert_questions
         self.clevr_dir = clevr_dir
         self.dictionaries = dictionaries
     
@@ -113,8 +115,8 @@ class ClevrDatasetStateDescription(Dataset):
         obj = self.objects[scene_idx]
         
         
-        question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'])
-        answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'])
+        question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'], self.invert_questions)
+        answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'], False)
         '''if self.dictionaries[2][answer[0]]=='color':
             image = Image.open(img_filename).convert('L')
             image = numpy.array(image)

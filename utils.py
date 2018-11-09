@@ -60,13 +60,16 @@ def build_dictionaries(clevr_dir):
     return ret
 
 
-def to_dictionary_indexes(dictionary, sentence):
+def to_dictionary_indexes(dictionary, sentence, invert):
     """
     Outputs indexes of the dictionary corresponding to the words in the sequence.
     Case insensitive.
     """
     split = tokenize(sentence)
-    idxs = torch.LongTensor([dictionary[w] for w in split])
+    d = [dictionary[w] for w in split]
+    if invert:
+        d = d[::-1]
+    idxs = torch.LongTensor(d)
     return idxs
 
 def collate_samples_from_pixels(batch):
@@ -96,8 +99,10 @@ def collate_samples(batch, state_description, only_images):
         max_len = max(map(len, questions))
 
         padded_questions = torch.LongTensor(batch_size, max_len).zero_()
+        question_lengths = torch.LongTensor(batch_size).zero_()
         for i, q in enumerate(questions):
             padded_questions[i, :len(q)] = q
+            question_lengths[i] = len(q)
         
     if state_description:
         max_len = 12
@@ -108,12 +113,22 @@ def collate_samples(batch, state_description, only_images):
         images = padded_objects
     
     if only_images:
-        collated_batch = torch.stack(images)
+        collated_batch = torch.stack(list(images))
     else:
+        # permute batch so that questions are sorted by increasing order (for packed sequence)
+        images = torch.stack(list(images))
+        answers = torch.stack(list(answers))
+
+        question_lengths, idxs = question_lengths.sort(descending=True)
+        images = images.index_select(0, idxs)
+        answers = answers.index_select(0, idxs)
+        padded_questions = padded_questions.index_select(0, idxs)       
+
         collated_batch = dict(
-            image=torch.stack(images),
-            answer=torch.stack(answers),
-            question=torch.stack(padded_questions)
+            image=images,
+            answer=answers,
+            question=padded_questions,
+            lengths=question_lengths
         )
     return collated_batch
 
@@ -131,24 +146,26 @@ def tokenize(sentence):
     return lower
 
 
-def load_tensor_data(data_batch, cuda, invert_questions, volatile=False):
+def load_tensor_data(data_batch, cuda, volatile=False):
     # prepare input
     var_kwargs = dict(volatile=True) if volatile else dict(requires_grad=False)
 
     qst = data_batch['question']
-    if invert_questions:
+    #qst_lenghts = data_batch['question_lenghts']
+    '''if invert_questions:
         # invert question indexes in this batch
         qst_len = qst.size()[1]
         qst = qst.index_select(1, torch.arange(qst_len - 1, -1, -1).long())
-
+    '''
     img = torch.autograd.Variable(data_batch['image'], **var_kwargs)
     qst = torch.autograd.Variable(qst, **var_kwargs)
     label = torch.autograd.Variable(data_batch['answer'], **var_kwargs)
+    qst_len = torch.autograd.Variable(data_batch['lengths'], **var_kwargs)
     if cuda:
-        img, qst, label = img.cuda(), qst.cuda(), label.cuda()
+        img, qst, label, qst_len = img.cuda(), qst.cuda(), label.cuda(), qst_len.cuda()
 
     label = (label - 1).squeeze(1)
-    return img, qst, label
+    return img, qst, label, qst_len
 
 class JsonCache:
     def __init__(self, json_filename, what, all_in_memory=True, json_cook_function=None):

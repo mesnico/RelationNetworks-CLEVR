@@ -52,12 +52,13 @@ class QuestionEmbedModel(nn.Module):
         self.lstm = nn.LSTM(embed, hidden, batch_first=True)  # Input dim is 32, output dim is the question embedding
         self.hidden = hidden
         
-    def forward(self, question):
+    def forward(self, question, lengths):
         #calculate question embeddings
         wembed = self.wembedding(question)
         # wembed = wembed.permute(1,0,2) # in lstm minibatches are in the 2-nd dimension
+        pack_wembed = torch.nn.utils.rnn.pack_padded_sequence(wembed, lengths, batch_first=True)
         self.lstm.flatten_parameters()
-        _, hidden = self.lstm(wembed) # initial state is set to zeros by default
+        _, hidden = self.lstm(pack_wembed) # initial state is set to zeros by default
         qst_emb = hidden[0] # hidden state of the lstm. qst = (B x 128)
         #qst_emb = qst_emb.permute(1,0,2).contiguous()
         #qst_emb = qst_emb.view(-1, self.hidden*2)
@@ -103,10 +104,12 @@ class RelationalLayer(RelationalLayerBase):
             else:
                 #create a standard g layer.
                 l = nn.Linear(in_s, out_s)
-            self.g_layers.append(l)	
+            self.g_layers.append(l)
+        self.g_layers.append(nn.Linear(self.g_layers_size[-1], out_size))	
+        self.g_layers_size.append(out_size)
         self.g_layers = nn.ModuleList(self.g_layers)
         self.extraction = extraction
-    
+       
     def forward(self, x, qst):
         # x = (B x 8*8 x 24)
         # qst = (B x 128)
@@ -130,7 +133,7 @@ class RelationalLayer(RelationalLayerBase):
         #create g and inject the question at the position pointed by quest_inject_position.
         for idx, (g_layer, g_layer_size) in enumerate(zip(self.g_layers, self.g_layers_size)):
             in_size = self.in_size if idx==0 else self.g_layers_size[idx-1]
-
+            out_size = g_layer_size if idx!=len(self.g_layers)-1 else self.out_size
             if idx==self.aggreg_position:
                 debug_print('{} - Aggregation'.format(idx))
                 x_ = x_.view(b,-1,in_size)
@@ -198,7 +201,7 @@ class RN(nn.Module):
         else:     
             print('Supposing original DeepMind model')
 
-    def forward(self, img, qst_idxs):
+    def forward(self, img, qst_idxs, qst_lengths):
         if self.state_desc:
             x = img # (B x 12 x 8)
         else:
@@ -214,7 +217,7 @@ class RN(nn.Module):
             x = torch.cat([x, self.coord_tensor], 1)    # (B x 24+2 x 8*8)
             x = x.permute(0, 2, 1)    # (B x 64 x 24+2)
         
-        qst = self.text(qst_idxs)
+        qst = self.text(qst_idxs, qst_lengths)
         y = self.rl(x, qst)
         return y
        
