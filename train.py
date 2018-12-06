@@ -27,7 +27,7 @@ from model import RN
 
 import pdb
 
-ALL_IN_MEMORY_CACHE = False
+ALL_IN_MEMORY_CACHE = True
 
 def train(data, model, optimizer, epoch, args):
     model.train()
@@ -99,8 +99,8 @@ def test(data, model, epoch, dictionaries, args):
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
         img, qst, label, qst_len = utils.load_tensor_data(sample_batched, args.cuda, volatile=True)
-        
-        output = model(img, qst, qst_len)
+        with torch.no_grad():
+            output = model(img, qst, qst_len)
         pred = output.data.max(1)[1]
 
         loss = F.nll_loss(output, label)
@@ -324,7 +324,9 @@ def main(args):
 
         # perform a full training
 
-        es = EarlyStopping(patience=50)
+        mod_patience = args.patience // args.validation_interval
+        print('Patience is {} epochs; with validation interval of {} it is set to {}'.format(args.patience, args.validation_interval, mod_patience))
+        es = EarlyStopping(patience=mod_patience)
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
         scheduler.last_epoch = start_epoch
@@ -353,13 +355,14 @@ def main(args):
             train(clevr_train_loader, model, optimizer, epoch, args)
 
             # TEST
-            progress_bar.set_description('TEST')
-            avg_loss = test(clevr_test_loader, model, epoch, dictionaries, args)
+            if epoch % args.validation_interval == 0:
+                progress_bar.set_description('TEST')
+                avg_loss = test(clevr_test_loader, model, epoch, dictionaries, args)
 
-            #check for early-stop
-            if es.step(avg_loss):
-                print('Early-stopping at epoch {}'.format(epoch))
-                break
+                #check for early-stop
+                if es.step(avg_loss):
+                    print('Early-stopping at epoch {}'.format(epoch))
+                    break
 
             # SAVE MODEL
             filename = 'RN_epoch_{:02d}.pth'.format(epoch)
@@ -413,6 +416,10 @@ if __name__ == '__main__':
                         help='configuration file for hyperparameters loading')
     parser.add_argument('--question-injection', type=int, default=-1, 
                         help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value)')
+    parser.add_argument('--validation-interval', type=int, default=5, 
+                        help='number of epochs before next validation')
+    parser.add_argument('--patience', type=int, default=50, 
+                        help='number of epochs before stopping training if no improvements occur')
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
     main(args)

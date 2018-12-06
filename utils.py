@@ -146,9 +146,9 @@ def tokenize(sentence):
     return lower
 
 
-def load_tensor_data(data_batch, cuda, volatile=False):
+def load_tensor_data(data_batch, cuda): #, volatile=False):
     # prepare input
-    var_kwargs = dict(volatile=True) if volatile else dict(requires_grad=False)
+    #var_kwargs = dict(volatile=True) if volatile else dict(requires_grad=False)
 
     qst = data_batch['question']
     #qst_lenghts = data_batch['question_lenghts']
@@ -157,10 +157,10 @@ def load_tensor_data(data_batch, cuda, volatile=False):
         qst_len = qst.size()[1]
         qst = qst.index_select(1, torch.arange(qst_len - 1, -1, -1).long())
     '''
-    img = torch.autograd.Variable(data_batch['image'], **var_kwargs)
-    qst = torch.autograd.Variable(qst, **var_kwargs)
-    label = torch.autograd.Variable(data_batch['answer'], **var_kwargs)
-    qst_len = torch.autograd.Variable(data_batch['lengths'], **var_kwargs)
+    img = torch.autograd.Variable(data_batch['image'])
+    qst = torch.autograd.Variable(qst)
+    label = torch.autograd.Variable(data_batch['answer'])
+    qst_len = torch.autograd.Variable(data_batch['lengths'])
     if cuda:
         img, qst, label, qst_len = img.cuda(), qst.cuda(), label.cuda(), qst_len.cuda()
 
