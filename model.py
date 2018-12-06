@@ -45,12 +45,13 @@ class ConvInputModel(nn.Module):
 
 
 class QuestionEmbedModel(nn.Module):
-    def __init__(self, in_size, embed=32, hidden=128):
+    def __init__(self, in_size, embed=32, hidden=128, bidirectional=False):
         super(QuestionEmbedModel, self).__init__()
         
         self.wembedding = nn.Embedding(in_size + 1, embed)  #word embeddings have size 32
-        self.lstm = nn.LSTM(embed, hidden, batch_first=True)  # Input dim is 32, output dim is the question embedding
+        self.lstm = nn.LSTM(embed, hidden, batch_first=True, bidirectional=True)  # Input dim is 32, output dim is the question embedding
         self.hidden = hidden
+        self.bidirectional = bidirectional
         
     def forward(self, question, lengths):
         #calculate question embeddings
@@ -60,9 +61,13 @@ class QuestionEmbedModel(nn.Module):
         self.lstm.flatten_parameters()
         _, hidden = self.lstm(pack_wembed) # initial state is set to zeros by default
         qst_emb = hidden[0] # hidden state of the lstm. qst = (B x 128)
-        #qst_emb = qst_emb.permute(1,0,2).contiguous()
-        #qst_emb = qst_emb.view(-1, self.hidden*2)
-        qst_emb = qst_emb[0]
+
+        if (self.bidirectional):
+        #bidirectional LSTM
+        	qst_emb = qst_emb.permute(1,0,2).contiguous()
+        	qst_emb = qst_emb.view(-1, self.hidden*2)
+        else:
+        	qst_emb = qst_emb[0]
         
         return qst_emb
 
@@ -190,12 +195,13 @@ class RN(nn.Module):
             
         # LSTM
         hidden_size = hyp["lstm_hidden"]
-        self.text = QuestionEmbedModel(args.qdict_size, embed=hyp["lstm_word_emb"], hidden=hidden_size)
+        bidirectional = hyp["bidirectional"]
+        self.text = QuestionEmbedModel(args.qdict_size, embed=hyp["lstm_word_emb"], hidden=hidden_size, bidirectional=bidirectional)
         
         # RELATIONAL LAYER
         self.rl_in_size = hyp["rl_in_size"]
         self.rl_out_size = args.adict_size
-        self.rl = RelationalLayer(self.rl_in_size, self.rl_out_size, hidden_size, hyp, extraction) 
+        self.rl = RelationalLayer(self.rl_in_size, self.rl_out_size, hidden_size*2 if bidirectional else hidden_size, hyp, extraction) 
         if hyp["question_injection_position"] != 0:          
             print('Supposing IR model')
         else:     
