@@ -98,7 +98,7 @@ def test(data, model, epoch, dictionaries, args):
     avg_loss = 0.0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
-        img, qst, label, qst_len = utils.load_tensor_data(sample_batched, args.cuda, volatile=True)
+        img, qst, label, qst_len = utils.load_tensor_data(sample_batched, args.cuda)
         with torch.no_grad():
             output = model(img, qst, qst_len)
         pred = output.data.max(1)[1]

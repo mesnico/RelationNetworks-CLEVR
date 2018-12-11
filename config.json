@@ -14,6 +14,58 @@
 	            "lstm_word_emb": 32,
 	            "rl_in_size": 52
 	        },
+	"original-fp-innetaggr-1" :
+                {
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 1024, 512, 1024],
+                "question_injection_position": 4,
+                "aggregation_position": 4,
+
+                    "dropouts": {"4": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": false
+                },
+	"original-fp-innetaggr-2" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 512, 256, 256, 256],
+                "question_injection_position": 5,
+                "aggregation_position": 4,
+
+                    "dropouts": {"6": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": false
+                },
+	"original-fp-innetaggr-1-bidir" :
+                {
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 1024, 512, 1024],
+                "question_injection_position": 4,
+                "aggregation_position": 4,
+
+                    "dropouts": {"4": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
+	"original-fp-innetaggr-2-bidir" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 512, 256, 256, 256],
+                "question_injection_position": 5,
+                "aggregation_position": 4,
+
+                    "dropouts": {"6": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
         "original-sd":
 	        {
 	            "state_description": true,
