@@ -9,8 +9,13 @@ from torch.utils.data import Dataset
 import utils
 import torch
 
+import time
+import h5py
+
+import pdb
+
 class ClevrDataset(Dataset):
-    def __init__(self, clevr_dir, train, dictionaries, invert_questions, transform=None, all_in_memory=False):
+    def __init__(self, clevr_dir, train, dictionaries, invert_questions, transform=None, all_in_memory=False, h5_data=False):
         """
         Args:
             clevr_dir (string): Root directory of CLEVR dataset
@@ -31,6 +36,8 @@ class ClevrDataset(Dataset):
         self.transform = transform
         self.dictionaries = dictionaries
         self.invert_questions = invert_questions
+        self.h5_data = h5_data
+        self.train = train
     
     def answer_weights(self):
         n = float(len(self.questions))
@@ -42,12 +49,21 @@ class ClevrDataset(Dataset):
         return len(self.questions)
 
     def __getitem__(self, idx):
+        init = time.time()
         current_question = self.questions[idx]
         img_filename = os.path.join(self.img_dir, current_question['image_filename'])
-        image = Image.open(img_filename).convert('RGB')
+        if self.h5_data:
+            self.h5_file = h5py.File(os.path.join(self.clevr_dir,'images_h5', '{}.h5'.format('train' if self.train else 'val')), 'r', swmr=True)
+            h5_image = self.h5_file[current_question['image_filename']]
+            image = Image.fromarray(h5_image[:])
+        else:
+            image = Image.open(img_filename).convert('RGB')
+
+        loaded = time.time()
 
         question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'], self.invert_questions)
         answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'], False)
+        dict_access = time.time()
         '''if self.dictionaries[2][answer[0]]=='color':
             image = Image.open(img_filename).convert('L')
             image = numpy.array(image)
@@ -59,7 +75,9 @@ class ClevrDataset(Dataset):
 
         if self.transform:
             sample['image'] = self.transform(sample['image'])
-        
+        transf = time.time()
+
+        #print('Loading: {}s\nDict: {}s\nTransforming: {}\nGlobal: {}\n'.format(loaded-init, dict_access-loaded,transf-dict_access, transf-init))
         return sample                
 
 class ClevrDatasetStateDescription(Dataset):
