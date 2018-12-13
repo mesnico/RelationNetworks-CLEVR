@@ -9,6 +9,7 @@ import os
 import pickle
 import re
 import numpy as np
+import glob
 
 import torch
 import torch.nn.functional as F
@@ -263,9 +264,27 @@ def main(args):
     start_epoch = 1
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-4)
 
-    if args.resume:
-        filename = args.resume
-        if os.path.isfile(filename):
+    # --- resume code ---
+    '''def get_latest_pth(path):
+        """Returns the name of the latest (most recent) file 
+        of the joined path(s)"""
+        fullpath = os.path.join(path, *paths)
+        files = glob.glob(fullpath)  # You may use iglob in Python3
+        if not files:                # I prefer using the negation
+            return None                      # because it behaves like a shortcut
+        latest_file = max(files, key=os.path.getctime)
+        #_, filename = os.path.split(latest_file)
+        return filename'''
+
+    if args.resume or args.auto_resume:
+        if args.resume:
+            filename = args.resume
+        elif args.auto_resume:
+            #files = glob.glob(args.model_dirs+'/*.pth')
+            files = os.listdir(args.model_dirs)
+            files = [os.path.join(args.model_dirs,f) for f in files if '.pth' in f]
+            filename = max(files, key=os.path.getctime) if files else None
+        if filename!=None and os.path.isfile(filename):
             print('==> loading checkpoint {}'.format(filename))
             checkpoint, optimizer_chkp = torch.load(filename)
 
@@ -275,9 +294,9 @@ def main(args):
             model.load_state_dict(checkpoint)
             optimizer.load_state_dict(optimizer_chkp)
             print('==> loaded checkpoint {}'.format(filename))
-            start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
+            start_epoch = int(re.match(r'.*epoch_(\d+).pth', filename).groups()[0]) + 1        
 
-    
+    # --- convolutional transfer learn code ---
     if args.conv_transfer_learn:
         if os.path.isfile(args.conv_transfer_learn):
             # TODO: there may be problems caused by pytorch issue #3805 if using DataParallel
@@ -388,7 +407,7 @@ if __name__ == '__main__':
                         help='random seed (default: 42)')
     parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
-    parser.add_argument('--resume', type=str,
+    parser.add_argument('--resume', type=str, default=None,
                         help='resume from model stored')
     parser.add_argument('--clevr-dir', type=str, default='.',
                         help='base directory of CLEVR dataset')
@@ -420,6 +439,9 @@ if __name__ == '__main__':
                         help='number of epochs before next validation')
     parser.add_argument('--patience', type=int, default=50, 
                         help='number of epochs before stopping training if no improvements occur')
+    parser.add_argument('--auto-resume', action='store_true', default=False,
+                        help='Auto resume from folder pertaining to the current experiment')
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
+    assert not (args.auto_resume==True and args.resume!=None), '--auto-resume and --resume options are mutually exclusive' 
     main(args)
