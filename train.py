@@ -29,6 +29,7 @@ from model import RN
 import pdb
 
 ALL_IN_MEMORY_CACHE = True
+torch.backends.cudnn.enabled = False
 
 def train(data, model, optimizer, epoch, args):
     model.train()
@@ -263,6 +264,7 @@ def main(args):
 
     start_epoch = 1
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-4)
+    scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
 
     # --- resume code ---
     '''def get_latest_pth(path):
@@ -286,13 +288,15 @@ def main(args):
             filename = max(files, key=os.path.getctime) if files else None
         if filename!=None and os.path.isfile(filename):
             print('==> loading checkpoint {}'.format(filename))
-            checkpoint, optimizer_chkp = torch.load(filename)
+            checkpoint, optimizer_chkp, scheduler_chkp = torch.load(filename)
 
             #removes 'module' from dict entries, pytorch bug #3805
             #checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
             model.load_state_dict(checkpoint)
             optimizer.load_state_dict(optimizer_chkp)
+            scheduler.load_state_dict(scheduler_chkp)
+
             print('==> loaded checkpoint {}'.format(filename))
             start_epoch = int(re.match(r'.*epoch_(\d+).pth', filename).groups()[0]) + 1        
 
@@ -347,8 +351,8 @@ def main(args):
         print('Patience is {} epochs; with validation interval of {} it is set to {}'.format(args.patience, args.validation_interval, mod_patience))
         es = EarlyStopping(patience=mod_patience)
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
-        scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
-        scheduler.last_epoch = start_epoch
+        
+        #scheduler.last_epoch = start_epoch
         print('Training ({} epochs) is starting...'.format(args.epochs))
         for epoch in progress_bar:
             
@@ -385,7 +389,7 @@ def main(args):
 
             # SAVE MODEL
             filename = 'RN_epoch_{:02d}.pth'.format(epoch)
-            torch.save([model.state_dict(), optimizer.state_dict()], os.path.join(args.model_dirs, filename))
+            torch.save([model.state_dict(), optimizer.state_dict(), scheduler.state_dict()], os.path.join(args.model_dirs, filename))
 
 
 if __name__ == '__main__':
