@@ -66,6 +66,123 @@
                     "rl_in_size": 52,
                     "bidirectional": true
                 },
+	"original-fp-innetaggr-3-bidir" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 256, 256, 256, 256],
+                "question_injection_position": 5,
+                "aggregation_position": 4,
+
+                    "dropouts": {"6": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
+	"original-fp-innetaggr-4-bidir" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 1024, 256, 256, 256],
+                "question_injection_position": 5,
+                "aggregation_position": 4,
+
+                    "dropouts": {"6": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
+	"original-fp-innetaggr-5-bidir" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 1024, 256, 256, 256],
+                "question_injection_position": 4,
+                "aggregation_position": 4,
+
+                    "dropouts": {"6": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
+	"original-fp-innetaggr-6-bidir" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 1024, 256, 256],
+                "question_injection_position": 4,
+                "aggregation_position": 4,
+
+                    "dropouts": {"5": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
+	"original-fp-innetaggr-7-bidir" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 1024, 256, 256],
+                "question_injection_position": 5,
+                "aggregation_position": 4,
+
+                    "dropouts": {"5": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
+	"original-fp-innetaggr-8-bidir" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 512, 256, 256, 256],
+                "question_injection_position": 4,
+                "aggregation_position": 3,
+
+                    "dropouts": {"5": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
+	"original-fp-innetaggr-9-bidir" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 512, 256, 256],
+                "question_injection_position": 5,
+                "aggregation_position": 4,
+
+                    "dropouts": {"5": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
+	"original-fp-innetaggr-10-bidir" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 2048, 256, 256],
+                "question_injection_position": 5,
+                "aggregation_position": 4,
+
+                    "dropouts": {"5": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
+	"original-fp-innetaggr-11-bidir" :
+                {   
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 4096, 256, 256],
+                "question_injection_position": 5,
+                "aggregation_position": 4,
+
+                    "dropouts": {"5": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true
+                },
         "original-sd":
 	        {
 	            "state_description": true,

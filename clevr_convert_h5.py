@@ -11,7 +11,7 @@ parser.add_argument('clevrdir',type=str,help='Origin Clevr Directory')
 args = parser.parse_args()
 
 src_img_folder = os.path.join(args.clevrdir,'images')
-dst_img_folder = os.path.join(args.clevrdir,'conv_images')
+dst_img_folder = os.path.join(args.clevrdir,'images_h5')
 
 if not os.path.exists(dst_img_folder):
 	os.makedirs(dst_img_folder)

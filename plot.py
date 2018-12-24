@@ -35,7 +35,7 @@ def plot_train_loss(args):
     if args.y_min != 0:
         plt.ylim(ymin=args.y_min)
     plt.grid()
-    plt.savefig(os.path.join(args.img_dir, 'train_loss.png'))
+    plt.savefig(os.path.join(args.img_dir, '{}_train_loss.png'.format(os.path.splitext(os.path.split(args.log_file)[1])[0])))
     if not args.no_show:
         plt.show()
 
@@ -50,7 +50,7 @@ def plot_test_loss(args):
         plt.ylim(ymin=args.y_min)
     plt.xlabel('Epoch')
     plt.grid()
-    plt.savefig(os.path.join(args.img_dir, 'test_loss.png'))
+    plt.savefig(os.path.join(args.img_dir, '{}_test_loss.png'.format(os.path.splitext(os.path.split(args.log_file)[1])[0])))
     if not args.no_show:
         plt.show()
 
@@ -72,7 +72,7 @@ def plot_accuracy(args):
     plt.xlabel('Epoch')
     plt.ylabel('%')
     plt.grid()
-    plt.savefig(os.path.join(args.img_dir, 'accuracy.png'))
+    plt.savefig(os.path.join(args.img_dir, '{}_accuracy.png'.format(os.path.splitext(os.path.split(args.log_file)[1])[0])))
     if not args.no_show:
         plt.show()
 
@@ -93,7 +93,7 @@ def plot_invalids(args):
     plt.xlabel('Epoch')
     plt.ylabel('%')
     plt.grid()
-    plt.savefig(os.path.join(args.img_dir, 'invalids.png'))
+    plt.savefig(os.path.join(args.img_dir, '{}_invalids.png'.format(os.path.splitext(os.path.split(args.log_file)[1])[0])))
     if not args.no_show:
         plt.show()
 
