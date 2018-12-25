@@ -36,30 +36,38 @@ def train(data, model, optimizer, epoch, args):
 
     avg_loss = 0.0
     n_batches = 0
+    minibatch_loss_sum = 0
     progress_bar = tqdm(data)
-    for batch_idx, sample_batched in enumerate(progress_bar):
+    optimizer.zero_grad()
+    for minibatch_idx, sample_batched in enumerate(progress_bar):
         img, qst, label, qst_len = utils.load_tensor_data(sample_batched, args.cuda)
         # forward and backward pass
-        optimizer.zero_grad()
+
         output = model(img, qst, qst_len)
         loss = F.nll_loss(output, label)
+        loss /= args.minibatches
+        minibatch_loss_sum += loss
         loss.backward()
 
         # Gradient Clipping
         if args.clip_norm:
             clip_grad_norm(model.parameters(), args.clip_norm)
 
-        optimizer.step()
+        if (minibatch_idx+1) % args.minibatches == 0:
+            #all minibatches have been accumulated. Zero the grad
+            optimizer.step()
+            optimizer.zero_grad()
 
-        # Show progress
-        progress_bar.set_postfix(dict(loss=loss.data.item()))
-        avg_loss += loss.data.item()
-        n_batches += 1
+            # Show progress
+            progress_bar.set_postfix(dict(loss=minibatch_loss_sum.data.item()))
+            avg_loss += minibatch_loss_sum.data.item()
+            n_batches += 1
+            minibatch_loss_sum = 0
 
-        if batch_idx % args.log_interval == 0:
+        if (minibatch_idx+1) % (args.log_interval*args.minibatches) == 0:
             avg_loss /= n_batches
-            processed = batch_idx * args.batch_size
-            n_samples = len(data) * args.batch_size
+            processed = minibatch_idx
+            n_samples = len(data)
             progress = float(processed) / n_samples
             print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {}'.format(
                 epoch, processed, n_samples, progress, avg_loss))
@@ -248,6 +256,8 @@ def main(args):
     print('Initializing CLEVR dataset...')
     clevr_dataset_train, clevr_dataset_test  = initialize_dataset(args.clevr_dir, dictionaries, hyp['state_description'], args.invert_questions)
     print('CLEVR dataset initialized!')
+
+    print('Minibatches have size: {}'.format(args.batch_size))
 
     # Build the model
     args.qdict_size = len(dictionaries[0])
@@ -445,7 +455,13 @@ if __name__ == '__main__':
                         help='number of epochs before stopping training if no improvements occur')
     parser.add_argument('--auto-resume', action='store_true', default=False,
                         help='Auto resume from folder pertaining to the current experiment')
+    parser.add_argument('--minibatches', type=int, default=1, 
+                        help='number of minibatches in every batch. Needed for batch-accumulation')
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
+
+    #TODO: args.batch_size becomes actually the minibatch size. Global refactor needed
+    args.batch_size //= args.minibatches
+
     assert not (args.auto_resume==True and args.resume!=None), '--auto-resume and --resume options are mutually exclusive' 
     main(args)

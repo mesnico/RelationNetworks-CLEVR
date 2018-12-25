@@ -17,7 +17,7 @@ def parse_log(log, pattern):
     with open(log, 'r') as log_file:
         for i, line in enumerate(log_file):
             match = re.search(pattern, line)
-            if match and '(0%)' not in line:
+            if match:
                 # yield the first group of the pattern;
                 # i.e. the one delimited in parenthesis
                 # inside the pattern (...)
