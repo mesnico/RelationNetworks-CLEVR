@@ -221,10 +221,10 @@ def main(args):
 
     print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
-    args.model_dirs = './model_{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
+    args.model_dirs = './model_{}{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
                       'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}'
     args.model_dirs = args.model_dirs.format(
-                        args.model, hyp['dropouts'], args.batch_size, args.bs_step, args.bs_gamma, 
+                        args.model, '-transf_learn' if args.transfer_learn else '', hyp['dropouts'], args.batch_size, args.bs_step, args.bs_gamma, 
                         args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
                         args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'])
     if not os.path.exists(args.model_dirs):
@@ -311,40 +311,48 @@ def main(args):
             start_epoch = int(re.match(r'.*epoch_(\d+).pth', filename).groups()[0]) + 1        
 
     # --- convolutional transfer learn code ---
-    if args.conv_transfer_learn:
-        if os.path.isfile(args.conv_transfer_learn):
+    if args.transfer_learn:
+        if os.path.isfile(args.transfer_learn):
             # TODO: there may be problems caused by pytorch issue #3805 if using DataParallel
 
-            print('==> loading conv layer from {}'.format(args.conv_transfer_learn))
+            print('==> loading conv and RN layers from {}'.format(args.transfer_learn))
             # pretrained dict is the dictionary containing the already trained conv layer
-            pretrained_dict = torch.load(args.conv_transfer_learn)
+            pretrained_dict = torch.load(args.transfer_learn)
 
             if torch.cuda.device_count() == 1:
                 conv_dict = model.conv.state_dict()
+                rl_dict = model.rl.state_dict()
             else:
                 conv_dict = model.module.conv.state_dict()
+                rl_dict = model.module.rl.state_dict()
             
             # filter only the conv layer from the loaded dictionary
-            conv_pretrained_dict = {k.replace('conv.','',1): v for k, v in pretrained_dict.items() if 'conv.' in k}
+            conv_pretrained_dict = {k.replace('module.','').replace('conv.','',1): v for k, v in pretrained_dict.items() if 'conv.' in k}
+
+            # get the weights from the first 2 layers of g
+            rl_pretrained_dict = {k.replace('module.','').replace('rl.','',1): v for k, v in pretrained_dict.items() if 'rl.' in k and 'f_fc' not in k and '.2.' not in k and '.3.' not in k}
 
             # overwrite entries in the existing state dict
             conv_dict.update(conv_pretrained_dict)
+            rl_dict.update(rl_pretrained_dict)
 
             # load the new state dict
             if torch.cuda.device_count() == 1:
                 model.conv.load_state_dict(conv_dict)
-                params = model.conv.parameters()
+                model.rl.load_state_dict(rl_dict)
+                #params = model.conv.parameters()
             else:
                 model.module.conv.load_state_dict(conv_dict)
-                params = model.module.conv.parameters()
+                model.module.rl.load_state_dict(rl_dict)
+                #params = model.module.conv.parameters()
 
             # freeze the weights for the convolutional layer by disabling gradient evaluation
             # for param in params:
             #     param.requires_grad = False
 
-            print("==> conv layer loaded!")
+            print("==> conv and RL layer loaded!")
         else:
-            print('Cannot load file {}'.format(args.conv_transfer_learn))
+            print('Cannot load file {}'.format(args.transfer_learn))
 
     progress_bar = trange(start_epoch, args.epochs + 1)
     if args.test:
@@ -431,8 +439,8 @@ if __name__ == '__main__':
                         help='invert the question word indexes for LSTM processing')
     parser.add_argument('--test', action='store_true', default=False,
                         help='perform only a single test. To use with --resume')
-    parser.add_argument('--conv-transfer-learn', type=str,
-                    help='use convolutional layer from another training')
+    parser.add_argument('--transfer-learn', type=str,
+                    help='use layers from another training')
     parser.add_argument('--lr-max', type=float, default=0.0005,
                         help='max learning rate')
     parser.add_argument('--lr-gamma', type=float, default=2, 
