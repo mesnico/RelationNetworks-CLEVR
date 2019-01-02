@@ -23,6 +23,7 @@ from early_stop import EarlyStopping
 
 import utils
 import math
+import custom_lr_schedulers
 from clevr_dataset_connector import ClevrDataset, ClevrDatasetStateDescription
 from model import RN
 
@@ -221,11 +222,14 @@ def main(args):
 
     print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
-    args.model_dirs = './model_{}{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
-                      'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}'
+    lr_params = ''
+    if 'lr_scheduler' in hyp:
+        for k,v in hyp['lr_scheduler'].items():
+            lr_params += k+str(v)+'_'
+    args.model_dirs = './model_{}{}_drop{}_bs{}_lrstart{}_'+ \
+                      '{}invquests-{}_clipnorm{}_glayers{}_qinj{}'
     args.model_dirs = args.model_dirs.format(
-                        args.model, '-transf_learn' if args.transfer_learn else '', hyp['dropouts'], args.batch_size, args.bs_step, args.bs_gamma, 
-                        args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
+                        args.model, '-transf_learn' if args.transfer_learn else '', hyp['dropouts'], args.batch_size, hyp['lr'], lr_params,
                         args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'])
     if not os.path.exists(args.model_dirs):
         os.makedirs(args.model_dirs)
@@ -273,8 +277,20 @@ def main(args):
         model.cuda()
 
     start_epoch = 1
-    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-4)
-    scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=hyp['lr'], weight_decay=1e-4)
+
+    if 'lr_scheduler' in hyp:
+        shyp = hyp['lr_scheduler']
+        if shyp['type'] == 'exp_step':
+        	scheduler = custom_lr_schedulers.ClampedStepLR(optimizer, shyp['step'], gamma=shyp['gamma'], maximum_lr=shyp['max'])
+        elif shyp['type'] == 'cosine_annealing_restarts':
+            scheduler = custom_lr_schedulers.CosineAnnealingRestartsLR(optimizer, T=shyp['T'], eta_min=shyp['eta_min'], T_mult=shyp['T_mult'], eta_mult=shyp['eta_mult'])
+        else:
+            raise ValueError('LR algorithm not found: {}'.format(sype['type']))
+
+        print('Using {} LR scheduler'.format(shyp['type']))
+    else:
+        scheduler = None
 
     # --- resume code ---
     '''def get_latest_pth(path):
@@ -311,7 +327,7 @@ def main(args):
             start_epoch = int(re.match(r'.*epoch_(\d+).pth', filename).groups()[0]) + 1        
 
     # --- convolutional transfer learn code ---
-    if args.transfer_learn:
+    if args.transfer_learn and not (args.resume or args.auto_resume):
         if os.path.isfile(args.transfer_learn):
             # TODO: there may be problems caused by pytorch issue #3805 if using DataParallel
 
@@ -372,21 +388,12 @@ def main(args):
         
         #scheduler.last_epoch = start_epoch
         print('Training ({} epochs) is starting...'.format(args.epochs))
+
+        clevr_train_loader, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, args.batch_size, args.test_batch_size, hyp['state_description'])
+
         for epoch in progress_bar:
             
-            if(((args.bs_max > 0 and bs < args.bs_max) or args.bs_max < 0 ) and (epoch % args.bs_step == 0 or epoch == start_epoch)):
-                bs = math.floor(args.batch_size * (args.bs_gamma ** (epoch // args.bs_step)))
-                if bs > args.bs_max and args.bs_max > 0:
-                    bs = args.bs_max
-                clevr_train_loader, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, bs, args.test_batch_size, hyp['state_description'])
-
-                #restart optimizer in order to restart learning rate scheduler
-                #for param_group in optimizer.param_groups:
-                #    param_group['lr'] = args.lr
-                #scheduler = lr_scheduler.CosineAnnealingLR(optimizer, step, min_lr)
-                print('Dataset reinitialized with batch size {}'.format(bs))
-            
-            if((args.lr_max > 0 and scheduler.get_lr()[0]<args.lr_max) or args.lr_max < 0):
+            if scheduler != None:
                 scheduler.step()
                     
             print('Current learning rate: {}'.format(optimizer.param_groups[0]['lr']))
@@ -419,8 +426,6 @@ if __name__ == '__main__':
                         help='input batch size for training (default: 640)')
     parser.add_argument('--epochs', type=int, default=350, metavar='N',
                         help='number of epochs to train (default: 350)')
-    parser.add_argument('--lr', type=float, default=0.000005, metavar='LR',
-                        help='learning rate (default: 0.000005)')
     parser.add_argument('--clip-norm', type=int, default=50,
                         help='max norm for gradients; set to 0 to disable gradient clipping (default: 10)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -441,18 +446,6 @@ if __name__ == '__main__':
                         help='perform only a single test. To use with --resume')
     parser.add_argument('--transfer-learn', type=str,
                     help='use layers from another training')
-    parser.add_argument('--lr-max', type=float, default=0.0005,
-                        help='max learning rate')
-    parser.add_argument('--lr-gamma', type=float, default=2, 
-                        help='increasing rate for the learning rate. 1 to keep LR constant.')
-    parser.add_argument('--lr-step', type=int, default=20,
-                        help='number of epochs before lr update')
-    parser.add_argument('--bs-max', type=int, default=-1,
-                        help='max batch-size')
-    parser.add_argument('--bs-gamma', type=float, default=1, 
-                        help='increasing rate for the batch size. 1 to keep batch-size constant.')
-    parser.add_argument('--bs-step', type=int, default=20, 
-                        help='number of epochs before batch-size update')
     parser.add_argument('--config', type=str, default='config.json',
                         help='configuration file for hyperparameters loading')
     parser.add_argument('--question-injection', type=int, default=-1, 

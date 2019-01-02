@@ -40,7 +40,7 @@
                     "rl_in_size": 52,
                     "bidirectional": false
                 },
-	"original-fp-innetaggr-1-bidir" :
+	"original-fp-innetaggr-1-bidir-steplr" :
                 {
                     "state_description": false,
                 "g_layers": [256, 256, 256, 1024, 512, 1024],
@@ -51,7 +51,35 @@
                     "lstm_hidden": 128,
                     "lstm_word_emb": 32,
                     "rl_in_size": 52,
-                    "bidirectional": true
+                    "bidirectional": true,
+		    "lr": 0.000005,
+                    "lr_scheduler": {
+                        "type": "exp_step",
+                        "max": 0.0005,
+                        "step": 20,
+                        "gamma": 2
+                    }
+                },
+	"original-fp-innetaggr-1-bidir-cosinerest" :
+                {
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 1024, 512, 1024],
+                "question_injection_position": 4,
+                "aggregation_position": 4,
+
+                    "dropouts": {"4": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true,
+		    "lr": 0.00075,
+                    "lr_scheduler": {
+                        "type": "cosine_annealing_restarts",
+                        "T": 30,
+                        "eta_min": 0.000005,
+                        "T_mult": 1,
+			"eta_mult": 1
+                    }
                 },
 	"original-fp-innetaggr-2-bidir" :
                 {   
