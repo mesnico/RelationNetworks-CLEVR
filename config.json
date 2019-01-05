@@ -53,6 +53,7 @@
                     "rl_in_size": 52,
                     "bidirectional": true,
 		    "lr": 0.000005,
+		    "aggregation": "weighted_sum",
                     "lr_scheduler": {
                         "type": "exp_step_restarts",
 			"T": 100,

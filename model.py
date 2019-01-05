@@ -97,6 +97,11 @@ class RelationalLayer(RelationalLayerBase):
         
         self.in_size = in_size
 
+        #create aggregation weights
+        if 'weighted' in hyp['aggregation']:
+            self.aggreg_weights = nn.Parameter(torch.Tensor(12**2 if hyp['state_description'] else 64**2))
+            nn.init.uniform_(self.aggreg_weights,-1,1)
+
         #create all g layers
         self.g_layers = []
         self.g_layers_size = hyp["g_layers"]
@@ -114,6 +119,7 @@ class RelationalLayer(RelationalLayerBase):
         self.g_layers_size.append(out_size)
         self.g_layers = nn.ModuleList(self.g_layers)
         self.extraction = extraction
+        self.aggregation = hyp['aggregation']
        
     def forward(self, x, qst):
         # x = (B x 8*8 x 24)
@@ -142,8 +148,15 @@ class RelationalLayer(RelationalLayerBase):
             if idx==self.aggreg_position:
                 debug_print('{} - Aggregation'.format(idx))
                 x_ = x_.view(b,-1,in_size)
-                x_ = x_.sum(1)
-
+                if self.aggregation == 'sum':
+                    x_ = x_.sum(1)
+                elif self.aggregation == 'avg':
+                    x_ = x_.mean(1)
+                elif self.aggregation == 'weighted_sum':
+                    x_ = torch.matmul(x_.permute(0,2,1), self.aggreg_weights)
+                else:
+                    raise ValueError('Aggregation not recognized: {}'.format(self.aggregation))
+                    
             if idx==self.quest_inject_position:
                 debug_print('{} - Question injection'.format(idx))
                 x_img = x_.view(b,-1,in_size)
