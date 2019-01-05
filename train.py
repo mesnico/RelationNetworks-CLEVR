@@ -30,7 +30,7 @@ from model import RN
 import pdb
 
 ALL_IN_MEMORY_CACHE = True
-torch.backends.cudnn.enabled = False
+#torch.backends.cudnn.enabled = False
 
 def train(data, model, optimizer, epoch, args):
     model.train()
@@ -285,6 +285,8 @@ def main(args):
         	scheduler = custom_lr_schedulers.ClampedStepLR(optimizer, shyp['step'], gamma=shyp['gamma'], maximum_lr=shyp['max'])
         elif shyp['type'] == 'cosine_annealing_restarts':
             scheduler = custom_lr_schedulers.CosineAnnealingRestartsLR(optimizer, T=shyp['T'], eta_min=shyp['eta_min'], T_mult=shyp['T_mult'], eta_mult=shyp['eta_mult'])
+        elif shyp['type'] == 'exp_step_restarts':
+            scheduler = custom_lr_schedulers.ClampedStepRestartsLR(optimizer, shyp['T'], shyp['step'], gamma=shyp['gamma'], maximum_lr=shyp['max'])
         else:
             raise ValueError('LR algorithm not found: {}'.format(sype['type']))
 
@@ -317,7 +319,7 @@ def main(args):
             checkpoint, optimizer_chkp, scheduler_chkp = torch.load(filename)
 
             #removes 'module' from dict entries, pytorch bug #3805
-            #checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
+            checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
 
             model.load_state_dict(checkpoint)
             optimizer.load_state_dict(optimizer_chkp)

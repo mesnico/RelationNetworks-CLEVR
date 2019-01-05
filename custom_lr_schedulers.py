@@ -1,14 +1,31 @@
 from torch.optim import lr_scheduler
 import math
 
-class ClampedStepLR(lr_scheduler.StepLR):
+'''class ClampedStepLR(lr_scheduler.StepLR):
     def __init__(self, optimizer, step_size, gamma=0.1, last_epoch=-1, maximum_lr=-1):
         self.maximum_lr = maximum_lr
         super(ClampedStepLR, self).__init__(optimizer, step_size, gamma, last_epoch)
 
-    def step():
+    def step(self):
         if((self.maximum_lr > 0 and get_lr()[0]<self.maximum_lr) or self.maximum_lr < 0):
-            super().step()
+            super().step()'''
+
+
+class ClampedStepRestartsLR(lr_scheduler._LRScheduler):
+    def __init__(self, optimizer, T, step_size, gamma=0.1, last_epoch=-1, maximum_lr=-1):
+        self.maximum_lr = maximum_lr
+        self.T = T
+        self.gamma = gamma
+        self.step_size = step_size
+        super(ClampedStepRestartsLR, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        i_restarts = self.last_epoch // self.T
+        last_restart = i_restarts * self.T
+        t = self.last_epoch - last_restart
+        return [base_lr * self.gamma ** (t // self.step_size) 
+            if (self.maximum_lr > 0 and base_lr * self.gamma ** (t // self.step_size)<self.maximum_lr) or self.maximum_lr < 0 else self.maximum_lr
+                for base_lr in self.base_lrs]
 
 
 class CosineAnnealingRestartsLR(lr_scheduler._LRScheduler):

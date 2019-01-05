@@ -40,7 +40,7 @@
                     "rl_in_size": 52,
                     "bidirectional": false
                 },
-	"original-fp-innetaggr-1-bidir-steplr" :
+	"original-fp-innetaggr-1-bidir-steplrrest" :
                 {
                     "state_description": false,
                 "g_layers": [256, 256, 256, 1024, 512, 1024],
@@ -54,9 +54,10 @@
                     "bidirectional": true,
 		    "lr": 0.000005,
                     "lr_scheduler": {
-                        "type": "exp_step",
+                        "type": "exp_step_restarts",
+			"T": 100,
                         "max": 0.0005,
-                        "step": 20,
+                        "step": 15,
                         "gamma": 2
                     }
                 },
