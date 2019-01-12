@@ -226,10 +226,10 @@ def main(args):
     if 'lr_scheduler' in hyp:
         for k,v in hyp['lr_scheduler'].items():
             lr_params += k+str(v)+'_'
-    args.model_dirs = './model_{}{}_drop{}_bs{}_lrstart{}_'+ \
+    args.model_dirs = './model_{}{}_drop{}_bs{}_{}_lrstart{}_'+ \
                       '{}invquests-{}_clipnorm{}_glayers{}_qinj{}'
     args.model_dirs = args.model_dirs.format(
-                        args.model, '-transf_learn' if args.transfer_learn else '', hyp['dropouts'], args.batch_size, hyp['lr'], lr_params,
+                        args.model, '-transf_learn' if args.transfer_learn else '', hyp['dropouts'], args.batch_size, hyp['aggregation'], hyp['lr'], lr_params,
                         args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'])
     if not os.path.exists(args.model_dirs):
         os.makedirs(args.model_dirs)

@@ -40,7 +40,7 @@
                     "rl_in_size": 52,
                     "bidirectional": false
                 },
-	"original-fp-innetaggr-1-bidir-steplrrest" :
+	"original-fp-innetaggr-1-bidir-steplrrest-weightedsum" :
                 {
                     "state_description": false,
                 "g_layers": [256, 256, 256, 1024, 512, 1024],
@@ -56,9 +56,30 @@
 		    "aggregation": "weighted_sum",
                     "lr_scheduler": {
                         "type": "exp_step_restarts",
-			"T": 100,
+			"T": 1000,
                         "max": 0.0005,
-                        "step": 15,
+                        "step": 20,
+                        "gamma": 2
+                    }
+                },
+	"original-fp-innetaggr-1-bidir-steplrrest" :
+                {
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 1024, 512, 1024],
+                "question_injection_position": 4,
+                "aggregation_position": 4,
+
+                    "dropouts": {"4": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true,
+		    "lr": 0.000005,
+                    "lr_scheduler": {
+                        "type": "exp_step_restarts",
+			"T": 1000,
+                        "max": 0.0005,
+                        "step": 20,
                         "gamma": 2
                     }
                 },
@@ -95,6 +116,28 @@
                     "lstm_word_emb": 32,
                     "rl_in_size": 52,
                     "bidirectional": true
+                },
+	"original-fp-innetaggr-2-bidir-steplrrest-weightedsum" :
+                {
+                    "state_description": false,
+                "g_layers": [256, 256, 256, 512, 256, 256, 256],
+                "question_injection_position": 5,
+                "aggregation_position": 4,
+
+                    "dropouts": {"6": 0.5},
+                    "lstm_hidden": 128,
+                    "lstm_word_emb": 32,
+                    "rl_in_size": 52,
+                    "bidirectional": true,
+		    "lr": 0.000005,
+		    "aggregation": "weighted_sum",
+                    "lr_scheduler": {
+                        "type": "exp_step_restarts",
+			"T": 1000,
+                        "max": 0.0005,
+                        "step": 20,
+                        "gamma": 2
+                    }
                 },
 	"original-fp-innetaggr-3-bidir" :
                 {   
