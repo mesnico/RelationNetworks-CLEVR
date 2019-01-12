@@ -20,12 +20,18 @@ import utils
 from clevr_dataset_connector import ClevrDatasetImages, ClevrDatasetImagesStateDescription
 from model import RN
 
-def extract_features_rl(data, quest_inject_index, extr_layer_idx, lstm_emb_size, max_features_file, avg_features_file, model, args):
+import pdb
+
+def extract_features_rl(data, extr_layer_idx, max_features_file, avg_features_file, model, args, hyp):
     #lay, io = args.layer.split(':') #TODO getting extraction layer from quest_inject_index, lay is unused
 
     maxf = []
     avgf = []
     #noaggf = []
+
+    quest_inject_index = hyp['question_injection_position']
+    lstm_emb_size = hyp['lstm_hidden']*2 if hyp['bidirectional'] else hyp['lstm_hidden']
+    
 
     def hook_function(m, i, o):
         nonlocal maxf, avgf #, noaggf
@@ -70,15 +76,21 @@ def extract_features_rl(data, quest_inject_index, extr_layer_idx, lstm_emb_size,
     
     h = extraction_layer.register_forward_hook(hook_function)
     for batch_idx, sample_batched in enumerate(progress_bar):
-        qst = torch.LongTensor(len(sample_batched), 1).zero_()
+        qst = torch.LongTensor(len(sample_batched), 100).zero_()
         qst = Variable(qst)
+
+        qst_len = torch.LongTensor(len(sample_batched)).zero_()
+        for i in range(len(sample_batched)):
+            qst_len[i] = len(sample_batched) - i
+        qst_len = Variable(qst_len)
 
         img = Variable(sample_batched)
         if args.cuda:
             qst = qst.cuda()
+            qst_len = qst_len.cuda()
             img = img.cuda()
         
-        model(img, qst)
+        model(img, qst, qst_len)
 
         max_features.append((batch_idx, maxf))
         avg_features.append((batch_idx, avgf))
@@ -158,7 +170,7 @@ def main(args):
 
     # Load the model checkpoint
     print('==> loading checkpoint {}'.format(args.checkpoint))
-    checkpoint = torch.load(args.checkpoint, map_location=lambda storage, loc: storage)
+    checkpoint, _ = torch.load(args.checkpoint, map_location=lambda storage, loc: storage)
 
     #removes 'module' from dict entries, pytorch bug #3805
     checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
@@ -169,7 +181,7 @@ def main(args):
     max_features = open(max_features, 'wb')
     avg_features = open(avg_features, 'wb')
 
-    extract_features_rl(clevr_feat_extraction_loader, hyp['question_injection_position'], args.extr_layer_idx, hyp['lstm_hidden'], max_features, avg_features, model, args)
+    extract_features_rl(clevr_feat_extraction_loader, args.extr_layer_idx, max_features, avg_features, model, args, hyp)
 
 
 if __name__ == '__main__':
