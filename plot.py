@@ -2,6 +2,7 @@ import re
 import argparse
 import os
 import matplotlib
+import numpy as np
 
 '''def parse_log(log, pattern):
     with open(log, 'r') as log_file:
@@ -21,10 +22,10 @@ def parse_log(log, pattern):
                 # yield the first group of the pattern;
                 # i.e. the one delimited in parenthesis
                 # inside the pattern (...)
-                yield i, match.group(1)
+                yield i, match
 
 def plot_train_loss(args):
-    losses = [(10*n,float(i)) for n,i in parse_log(args.log_file, r'Train loss: (.*)')]
+    losses = [(10*n,float(i.group(1))) for n,i in parse_log(args.log_file, r'Train loss: (.*)')]
     plt.clf()
     it, losses = zip(*losses)
     plt.plot(it, losses)
@@ -40,7 +41,11 @@ def plot_train_loss(args):
         plt.show()
 
 def plot_test_loss(args):
-    losses = [float(i) for _,i in parse_log(args.log_file, r'Test loss = (.*)')]
+    losses = [(int(i.group(1)),float(i.group(2))) for _,i in parse_log(args.log_file, r'Test Epoch (\d+).*Test loss = (.*)')]
+    epoch, losses = zip(*losses)
+    argmin_loss = np.argmin(losses)
+    min_loss, min_epoch = losses[argmin_loss], epoch[argmin_loss]
+    print('Minimum loss is {} at epoch {}'.format(min_loss, min_epoch))
     plt.clf()
     plt.plot(losses)
     plt.title('Test Loss')
@@ -56,10 +61,10 @@ def plot_test_loss(args):
 
 
 def plot_accuracy(args):
-    accuracy = [float(i) for _,i in parse_log(args.log_file, r'.* Accuracy = (\d+\.\d+)%')]
+    accuracy = [float(i.group(1)) for _,i in parse_log(args.log_file, r'.* Accuracy = (\d+\.\d+)%')]
     details = ['exist', 'number', 'material', 'size', 'shape', 'color']
     
-    accs = {k: [float(i) for _,i in parse_log(args.log_file, '{} -- acc: (\d+\.\d+)%'.format(k))]
+    accs = {k: [float(i.group(1)) for _,i in parse_log(args.log_file, '{} -- acc: (\d+\.\d+)%'.format(k))]
             for k in details}
     
     plt.clf()
@@ -77,7 +82,7 @@ def plot_accuracy(args):
         plt.show()
 
 def plot_invalids(args):
-    invalids = [float(i) for _,i in parse_log(args.log_file, r'.* Invalids = (\d+\.\d+)%')]
+    invalids = [float(i.group(1)) for _,i in parse_log(args.log_file, r'.* Invalids = (\d+\.\d+)%')]
     '''details = ['exist', 'number', 'material', 'size', 'shape', 'color']
     
     invds = {k: [float(i) for i in parse_log(log, '.* invalid: (\d+\.\d+)%'.format(k))]

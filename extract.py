@@ -170,7 +170,7 @@ def main(args):
 
     # Load the model checkpoint
     print('==> loading checkpoint {}'.format(args.checkpoint))
-    checkpoint, _ = torch.load(args.checkpoint, map_location=lambda storage, loc: storage)
+    checkpoint, _, _ = torch.load(args.checkpoint, map_location=lambda storage, loc: storage)
 
     #removes 'module' from dict entries, pytorch bug #3805
     checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
