@@ -1,10 +1,9 @@
-import os
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-import math
+
+import RGCN_model
 
 import pdb
 
@@ -87,7 +86,7 @@ class RelationalLayerBase(nn.Module):
     
 
 class RelationalLayer(RelationalLayerBase):
-    def __init__(self, in_size, out_size, qst_size, hyp, extraction=False):
+    def __init__(self, in_size, out_size, qst_size, hyp, extraction=False, scene_embedding=False):
         super().__init__(in_size, out_size, qst_size, hyp)
 
         self.quest_inject_position = hyp["question_injection_position"]
@@ -96,6 +95,7 @@ class RelationalLayer(RelationalLayerBase):
         self.dropouts = {int(k):nn.Dropout(p=v) for k,v in hyp["dropouts"].items()}
         
         self.in_size = in_size
+        self.scene_embedding = scene_embedding
 
         #create aggregation weights
         if 'weighted' in hyp['aggregation']:
@@ -125,27 +125,35 @@ class RelationalLayer(RelationalLayerBase):
         # x = (B x 8*8 x 24)
         # qst = (B x 128)
         """g"""
-        b, d, k = x.size()
-        qst_size = qst.size()[1]
-        
-        # cast all pairs against each other
-        x_i = torch.unsqueeze(x, 1)                   # (B x 1 x 64 x 26)
-        x_i = x_i.repeat(1, d, 1, 1)                    # (B x 64 x 64 x 26)
-        x_j = torch.unsqueeze(x, 2)                   # (B x 64 x 1 x 26)
-        #x_j = torch.cat([x_j, qst], 3)
-        x_j = x_j.repeat(1, 1, d, 1)                    # (B x 64 x 64 x 26)
-        
-        # concatenate all together
-        x_full = torch.cat([x_i, x_j], 3)                  # (B x 64 x 64 x 2*26)
-        
-        # reshape for passing through network
-        x_ = x_full.view(b * d**2, self.in_size)
+        if self.scene_embedding:
+            # x already contains a global scene embedding
+            x_ = x
+            b, k = x.size()
+        else:
+            # process image by creating all couples
+            b, d, k = x.size()
+            qst_size = qst.size()[1]
+
+            # cast all pairs against each other
+            x_i = torch.unsqueeze(x, 1)                   # (B x 1 x 64 x 26)
+            x_i = x_i.repeat(1, d, 1, 1)                    # (B x 64 x 64 x 26)
+            x_j = torch.unsqueeze(x, 2)                   # (B x 64 x 1 x 26)
+            #x_j = torch.cat([x_j, qst], 3)
+            x_j = x_j.repeat(1, 1, d, 1)                    # (B x 64 x 64 x 26)
+
+            # concatenate all together
+            x_full = torch.cat([x_i, x_j], 3)                  # (B x 64 x 64 x 2*26)
+
+            # reshape for passing through network
+            x_ = x_full.view(b * d**2, self.in_size)
 
         #create g and inject the question at the position pointed by quest_inject_position.
         for idx, (g_layer, g_layer_size) in enumerate(zip(self.g_layers, self.g_layers_size)):
             in_size = self.in_size if idx==0 else self.g_layers_size[idx-1]
             out_size = g_layer_size if idx!=len(self.g_layers)-1 else self.out_size
-            if idx==self.aggreg_position:
+
+            # NOTE: if x is a graph, aggregation should not be done, we don't have couples to be processed
+            if idx==self.aggreg_position and not self.scene_embedding:
                 debug_print('{} - Aggregation'.format(idx))
                 x_ = x_.view(b,-1,in_size)
                 if self.aggregation == 'sum':
@@ -159,19 +167,24 @@ class RelationalLayer(RelationalLayerBase):
                     
             if idx==self.quest_inject_position:
                 debug_print('{} - Question injection'.format(idx))
-                x_img = x_.view(b,-1,in_size)
+                if self.scene_embedding:
+                    # create a fictitious dimension in the middle in order to be compatible as it was an image embedding
+                    x_img = torch.unsqueeze(x_, 1)
+                else:
+                    x_img = x_.view(b,-1,in_size)
+
                 n_couples = x_img.size()[1]
 
                 # add question everywhere
                 unsq_qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
-                unsq_qst = unsq_qst.repeat(1, n_couples**2, 1)          # (B x 64*64 x 128)
+                unsq_qst = unsq_qst.repeat(1, n_couples, 1)          # (B x 64*64 x 128)
                 #unsq_qst = torch.unsqueeze(unsq_qst, 2)                 # (B x 64 x 1 x 128)
                 #unsq_qst = unsq_qst.repeat(1,1,n_couples,1)
 
                 # questions inserted
                 
                 x_concat = torch.cat([x_img,unsq_qst],2) #(B x 64*64 x 128+256)
-                x_ = x_concat.view(b*(n_couples**2),in_size+self.qst_size)
+                x_ = x_concat.view(b*n_couples,in_size+self.qst_size)
                 
                 x_ = g_layer(x_)
 
@@ -201,10 +214,15 @@ class RN(nn.Module):
         super(RN, self).__init__()
         self.coord_tensor = None
         self.on_gpu = False
-        
-        # CNN
-        self.conv = ConvInputModel()
-        self.state_desc = hyp['state_description']            
+
+        self.state_desc = hyp['state_description']
+
+        if self.state_desc == 'graph':
+            # GCN
+            self.graph_model = RGCN_model.RGCNModel(hyp)
+        else:
+            # CNN (if both matrix state description or original DeepMind model)
+            self.conv = ConvInputModel()
             
         # LSTM
         hidden_size = hyp["lstm_hidden"]
@@ -214,16 +232,20 @@ class RN(nn.Module):
         # RELATIONAL LAYER
         self.rl_in_size = hyp["rl_in_size"]
         self.rl_out_size = args.adict_size
-        self.rl = RelationalLayer(self.rl_in_size, self.rl_out_size, hidden_size*2 if bidirectional else hidden_size, hyp, extraction) 
+        self.rl = RelationalLayer(self.rl_in_size, self.rl_out_size, hidden_size*2 if bidirectional else hidden_size,
+                                  hyp, extraction=extraction, scene_embedding=(self.state_desc == 'graph'))
         if hyp["question_injection_position"] != 0:          
             print('Supposing IR model')
         else:     
             print('Supposing original DeepMind model')
 
     def forward(self, img, qst_idxs, qst_lengths):
-        if self.state_desc:
+        if self.state_desc == 'matrix':
             x = img # (B x 12 x 8)
-        else:
+        if self.state_desc == 'graph':
+            x = self.graph_model(img)
+        elif self.state_desc is None:
+            # original DeepMind architecture
             x = self.conv(img)  # (B x 24 x 8 x 8)
             b, k, d, _ = x.size()
             x = x.view(b,k,d*d) # (B x 24 x 8*8)

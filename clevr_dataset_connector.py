@@ -1,7 +1,6 @@
-import json
 import os
-import pickle
 from PIL import Image
+import dgl
 
 from collections import Counter
 from torch.utils.data import Dataset
@@ -12,14 +11,13 @@ import torch
 import time
 import h5py
 
-import pdb
 
 class ClevrDataset(Dataset):
     def __init__(self, clevr_dir, train, dictionaries, invert_questions, transform=None, all_in_memory=False, h5_data=False):
         """
         Args:
             clevr_dir (string): Root directory of CLEVR dataset
-			train (bool): Tells if we are loading the train or the validation datasets
+            train (bool): Tells if we are loading the train or the validation datasets
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
@@ -78,7 +76,60 @@ class ClevrDataset(Dataset):
         transf = time.time()
 
         #print('Loading: {}s\nDict: {}s\nTransforming: {}\nGlobal: {}\n'.format(loaded-init, dict_access-loaded,transf-dict_access, transf-init))
-        return sample                
+        return sample
+
+
+class ClevrDatasetGraphs(Dataset):
+    def __init__(self, clevr_dir, train, dictionaries, invert_questions, all_in_memory=False):
+        """
+        Args:
+            clevr_dir (string): Root directory of CLEVR dataset
+            train (bool): Tells if we are loading the train or the validation datasets
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        self.mode = 'train' if train else 'val'
+        quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_{}_questions.json'.format(self.mode))
+        scene_json_filename = os.path.join(clevr_dir, 'scenes', 'CLEVR_{}_scenes.json'.format(self.mode))
+
+        self.questions = utils.JsonCache(quest_json_filename, 'questions', all_in_memory)
+        #self.graphs = utils.load_graphs(scene_json_filename)
+        self.graphs = utils.JsonCache(scene_json_filename, 'scenes', all_in_memory, json_cook_function=utils.load_graphs)
+
+        self.clevr_dir = clevr_dir
+        self.dictionaries = dictionaries
+        self.invert_questions = invert_questions
+
+    def __len__(self):
+        return len(self.questions)
+
+    def __getitem__(self, idx):
+        current_question = self.questions[idx]
+
+        graph_idx = current_question['image_index']
+        nx_graph = self.graphs[graph_idx]
+        dgl_graph = dgl.DGLGraph(multigraph=True)
+        dgl_graph.from_networkx(
+            nx_graph,
+            edge_attrs=['rel_type'],
+            node_attrs=['h']
+        )
+
+        question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'],
+                                               self.invert_questions)
+        answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'], False)
+        '''if self.dictionaries[2][answer[0]]=='color':
+            image = Image.open(img_filename).convert('L')
+            image = numpy.array(image)
+            image = numpy.stack((image,)*3)
+            image = numpy.transpose(image, (1,2,0))
+            image = Image.fromarray(image.astype('uint8'), 'RGB')'''
+
+        sample = {'image': dgl_graph, 'question': question, 'answer': answer}
+
+        return sample
+
+
 
 class ClevrDatasetStateDescription(Dataset):
     def __init__(self, clevr_dir, train, dictionaries, invert_questions, all_in_memory=False):

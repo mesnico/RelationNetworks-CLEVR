@@ -2,18 +2,87 @@
     "hyperparams" : {
         "original-fp" :
 	        {
-	            "state_description": false,
-                "g_layers": [256,256,256,256],
-                "question_injection_position": 0,
-	            
-	            "f_fc1": 256,
-	            "f_fc2": 256,
-	            
-	            "dropout": 0.5,
-	            "lstm_hidden": 128,
-	            "lstm_word_emb": 32,
-	            "rl_in_size": 52
+			  "state_description": null,
+              "g_layers": [256,256,256,256,256,256],
+              "question_injection_position": 0,
+			  "aggregation_position": 4,
+			  "bidirectional": true,
+			  "aggregation": "sum",
+			  "lr": 0.000005,
+			  "lr_scheduler": {
+                "type": "exp_step_restarts",
+                "T": 3000,
+                "max": 0.0005,
+                "step": 20,
+                "gamma": 2
+              },
+			    
+			    
+			"dropouts": {"5": 0.5},
+			"lstm_hidden": 128,
+			"lstm_word_emb": 32,
+			"rl_in_size": 52
 	        },
+	"original-sd-bidir-graph" :
+	        {
+			  "state_description": "graph",
+              "g_layers": [512,256,256,256],
+              "question_injection_position": 0,
+			  "aggregation_position": -1,
+			  "bidirectional": true,
+			  "aggregation": "sum",
+			  "lr": 0.000005,
+			  "lr_scheduler": {
+                "type": "exp_step_restarts",
+                "T": 3000,
+                "max": 0.0005,
+                "step": 20,
+                "gamma": 2
+              },
+			  "rgcn_module": {
+                "initial_h_dim": 15,
+                "h_dim": 64,
+                "out_dim": 64,
+                "num_rels": 2,
+                "edge_drop_prob": 0,
+                "loop_drop_prob": 0
+			  },
+			    
+			  "dropouts": {"3": 0.5},
+			  "lstm_hidden": 128,
+			  "lstm_word_emb": 32,
+			  "rl_in_size": 512
+	        },
+	 "original-sd-invert-graph" :
+                {
+                          "state_description": "graph",
+              "g_layers": [512,256,256,256],
+              "question_injection_position": 0,
+                          "aggregation_position": -1,
+                          "bidirectional": false,
+                          "aggregation": "sum",
+                          "lr": 0.000005,
+                          "lr_scheduler": {
+                "type": "exp_step_restarts",
+                "T": 3000,
+                "max": 0.0005,
+                "step": 20,
+                "gamma": 2
+              },
+                          "rgcn_module": {
+                "initial_h_dim": 15,
+                "h_dim": 64,
+                "out_dim": 64,
+                "num_rels": 2,
+                "edge_drop_prob": 0,
+                "loop_drop_prob": 0
+                          },
+                            
+                          "dropouts": {"3": 0.5},
+                          "lstm_hidden": 128,
+                          "lstm_word_emb": 32,
+                          "rl_in_size": 512
+                },
 	"original-fp-innetaggr-1" :
                 {
                     "state_description": false,

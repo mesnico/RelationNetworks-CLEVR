@@ -24,12 +24,12 @@ from early_stop import EarlyStopping
 import utils
 import math
 import custom_lr_schedulers
-from clevr_dataset_connector import ClevrDataset, ClevrDatasetStateDescription
+from clevr_dataset_connector import ClevrDataset, ClevrDatasetGraphs, ClevrDatasetStateDescription
 from model import RN
 
 import pdb
 
-ALL_IN_MEMORY_CACHE = True
+ALL_IN_MEMORY_CACHE = False
 #torch.backends.cudnn.enabled = False
 
 def train(data, model, optimizer, epoch, args):
@@ -171,27 +171,31 @@ def test(data, model, epoch, dictionaries, args):
     pickle.dump(dump_object, open(filename,'wb'))
     return avg_loss
 
-def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, state_description = False):
-    if not state_description:
-        # Use a weighted sampler for training:
-        #weights = clevr_dataset_train.answer_weights()
-        #sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
 
-        # Initialize Clevr dataset loaders
-        clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
-                                        shuffle=True, num_workers=8, collate_fn=utils.collate_samples_from_pixels)
-        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
-                                       shuffle=False, num_workers=8, collate_fn=utils.collate_samples_from_pixels)
+def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, state_description=None):
+    if state_description is None:
+        collate_fn = utils.collate_samples_from_pixels
+    elif state_description == 'matrix':
+        collate_fn = utils.collate_samples_state_description_matrix
+    elif state_description == 'graph':
+        collate_fn = utils.collate_samples_state_description_graph
     else:
-        # Initialize Clevr dataset loaders
-        clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
-                                        shuffle=True, collate_fn=utils.collate_samples_state_description)
-        clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
-                                       shuffle=False, collate_fn=utils.collate_samples_state_description)
+        collate_fn = None
+
+    # Use a weighted sampler for training:
+    #weights = clevr_dataset_train.answer_weights()
+    #sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
+
+    # Initialize Clevr dataset loaders
+    clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
+                                    shuffle=True, num_workers=8, collate_fn=collate_fn)
+    clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
+                                   shuffle=False, num_workers=8, collate_fn=collate_fn)
     return clevr_train_loader, clevr_test_loader
 
-def initialize_dataset(clevr_dir, dictionaries, state_description=True, invert_questions=True):
-    if not state_description:
+
+def initialize_dataset(clevr_dir, dictionaries, state_description=None, invert_questions=True):
+    if state_description is None:
         train_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                            transforms.Pad(8),
                                            transforms.RandomCrop((128, 128)),
@@ -203,9 +207,13 @@ def initialize_dataset(clevr_dir, dictionaries, state_description=True, invert_q
         clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, invert_questions, train_transforms, ALL_IN_MEMORY_CACHE)
         clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, invert_questions, test_transforms, ALL_IN_MEMORY_CACHE)
         
-    else:
+    elif state_description == 'matrix':
         clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries, invert_questions, ALL_IN_MEMORY_CACHE)
         clevr_dataset_test = ClevrDatasetStateDescription(clevr_dir, False, dictionaries, invert_questions, ALL_IN_MEMORY_CACHE)
+
+    elif state_description == 'graph':
+        clevr_dataset_train = ClevrDatasetGraphs(clevr_dir, True, dictionaries, invert_questions, ALL_IN_MEMORY_CACHE)
+        clevr_dataset_test = ClevrDatasetGraphs(clevr_dir, False, dictionaries, invert_questions, ALL_IN_MEMORY_CACHE)
     
     return clevr_dataset_train, clevr_dataset_test 
         

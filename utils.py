@@ -3,6 +3,9 @@ import os
 import pickle
 import re
 import shelve
+import dgl
+import networkx as nx
+import numpy as np
 
 import torch
 from tqdm import tqdm
@@ -72,14 +75,22 @@ def to_dictionary_indexes(dictionary, sentence, invert):
     idxs = torch.LongTensor(d)
     return idxs
 
+
 def collate_samples_from_pixels(batch):
-    return collate_samples(batch, False, False)
-    
-def collate_samples_state_description(batch):
-    return collate_samples(batch, True, False)
+    return collate_samples(batch, state_description=None, only_images=False)
+
+
+def collate_samples_state_description_matrix(batch):
+    return collate_samples(batch, state_description='matrix', only_images=False)
+
+
+def collate_samples_state_description_graph(batch):
+    return collate_samples(batch, state_description='graph', only_images=False)
+
 
 def collate_samples_images_state_description(batch):
-    return collate_samples(batch, True, True)
+    return collate_samples(batch, state_description='matrix', only_images=True)
+
     
 def collate_samples(batch, state_description, only_images):
     """
@@ -104,23 +115,25 @@ def collate_samples(batch, state_description, only_images):
             padded_questions[i, :len(q)] = q
             question_lengths[i] = len(q)
         
-    if state_description:
+    if state_description == 'matrix':
         max_len = 12
-        #even object matrices should be padded (they are variable length)
+        # even object matrices should be padded (they are variable length)
         padded_objects = torch.FloatTensor(batch_size, max_len, images[0].size()[1]).zero_()
         for i, o in enumerate(images):
             padded_objects[i, :o.size()[0], :] = o
         images = padded_objects
     
     if only_images:
-        collated_batch = torch.stack(list(images))
+        collated_batch = dgl.batch(images) if state_description == 'graph' else torch.stack(list(images))
     else:
         # permute batch so that questions are sorted by increasing order (for packed sequence)
-        images = torch.stack(list(images))
+        # images = torch.stack(list(images))
         answers = torch.stack(list(answers))
 
         question_lengths, idxs = question_lengths.sort(descending=True)
-        images = images.index_select(0, idxs)
+        images = [images[idx] for idx in idxs]
+        # images = images.index_select(0, idxs)
+        images = dgl.batch(images) if state_description == 'graph' else torch.stack(list(images))
         answers = answers.index_select(0, idxs)
         padded_questions = padded_questions.index_select(0, idxs)       
 
@@ -157,15 +170,20 @@ def load_tensor_data(data_batch, cuda): #, volatile=False):
         qst_len = qst.size()[1]
         qst = qst.index_select(1, torch.arange(qst_len - 1, -1, -1).long())
     '''
-    img = torch.autograd.Variable(data_batch['image'])
-    qst = torch.autograd.Variable(qst)
-    label = torch.autograd.Variable(data_batch['answer'])
-    qst_len = torch.autograd.Variable(data_batch['lengths'])
+    img = data_batch['image']
+    label = data_batch['answer']
+    qst_len = data_batch['lengths']
     if cuda:
-        img, qst, label, qst_len = img.cuda(), qst.cuda(), label.cuda(), qst_len.cuda()
+        qst, label, qst_len = qst.cuda(), label.cuda(), qst_len.cuda()
+        if type(img) is dgl.BatchedDGLGraph:
+            img.ndata['h'] = img.ndata['h'].cuda()
+            img.edata['rel_type'] = img.edata['rel_type'].cuda()
+        else:
+            img = img.cuda()
 
     label = (label - 1).squeeze(1)
     return img, qst, label, qst_len
+
 
 class JsonCache:
     def __init__(self, json_filename, what, all_in_memory=True, json_cook_function=None):
@@ -182,7 +200,7 @@ class JsonCache:
         else:
             with open(json_filename, 'r') as json_file:
                 loaded = json.load(json_file)[what]
-                if json_cook_function != None:
+                if json_cook_function is not None:
                     loaded = json_cook_function(loaded)
             if all_in_memory:
                 with open(cached_filename, 'wb') as f:
@@ -194,7 +212,7 @@ class JsonCache:
                         s[str(idx)] = x
                 self.out = shelve.open(cached_filename)
 
-    def __getitem__(self,idx):
+    def __getitem__(self, idx):
         if self.all_in_memory:
             return self.out[idx]
         else:
@@ -202,4 +220,49 @@ class JsonCache:
 
     def __len__(self):
         return len(self.out)
-        
+
+
+def load_graphs(clevr_scenes):
+    clevr_node_attrs = {
+        'material': ['rubber', 'metal'],
+        'color': ['cyan', 'blue', 'yellow', 'purple', 'red', 'green', 'gray', 'brown'],
+        'shape': ['sphere', 'cube', 'cylinder'],
+        'size': ['large', 'small']
+    }
+
+    '''with open(scene_json_filename, 'r') as jsonf:
+        clevr_scenes = json.load(jsonf)['scenes']  # [0:1000]   # TODO: remove this, is only for debugging
+    '''
+    graphs = [0]*len(clevr_scenes)
+
+    for scene in clevr_scenes:
+        graph = nx.MultiDiGraph()
+        # build graph nodes for every object
+        objs = scene['objects']
+        for idx, obj in enumerate(objs):
+            # construct 15-dimensional one-hot node feature vector
+            l = []
+            for property in clevr_node_attrs:
+                onehot = np.zeros(len(clevr_node_attrs[property]))
+                onehot[clevr_node_attrs[property].index(obj[property])] = 1
+                l.append(onehot)
+            node_feat = torch.from_numpy(np.hstack(l)).float()
+            graph.add_node(idx,
+                           color=obj['color'],
+                           shape=obj['shape'],
+                           material=obj['material'],
+                           size=obj['size'],
+                           h=node_feat
+                           )
+
+        relationships = scene['relationships']
+        for name, rel in relationships.items():
+            if name in ('right', 'front'):
+                for b_idx, row in enumerate(rel):
+                    for a_idx in row:
+                        rel_id = 0 if name == 'right' else 1
+                        rel_id = torch.tensor(rel_id)
+                        graph.add_edge(a_idx, b_idx, rel_name=name, rel_type=rel_id)
+
+        graphs[scene['image_index']] = graph
+    return graphs
