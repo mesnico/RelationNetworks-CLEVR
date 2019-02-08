@@ -356,7 +356,7 @@ def main(args):
             conv_pretrained_dict = {k.replace('module.','').replace('conv.','',1): v for k, v in pretrained_dict.items() if 'conv.' in k}
 
             # get the weights from the first 2 layers of g
-            rl_pretrained_dict = {k.replace('module.','').replace('rl.','',1): v for k, v in pretrained_dict.items() if 'rl.' in k and 'f_fc' not in k and '.2.' not in k and '.3.' not in k}
+            rl_pretrained_dict = {k.replace('module.','').replace('rl.','',1): v for k, v in pretrained_dict.items() if 'rl.' in k and 'f_fc' not in k and '.0.' not in k}  # and '.2.' not in k and '.3.' not in k}
 
             # overwrite entries in the existing state dict
             conv_dict.update(conv_pretrained_dict)
