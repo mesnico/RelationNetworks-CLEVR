@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 import RGCN_model
+import MPNN_model
 
 import pdb
 
@@ -219,7 +220,13 @@ class RN(nn.Module):
 
         if self.state_desc == 'graph':
             # GCN
-            self.graph_model = RGCN_model.RGCNModel(hyp)
+            if 'rgcn_module' in hyp:
+                self.graph_model = RGCN_model.RGCNModel(hyp)
+            elif 'mpnn_module' in hyp:
+                self.graph_model = MPNN_model.MPNNModel(hyp)
+            else:
+                self.graph_model = None
+
         else:
             # CNN (if both matrix state description or original DeepMind model)
             self.conv = ConvInputModel()

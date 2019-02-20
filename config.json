@@ -143,6 +143,35 @@
 			  "lstm_word_emb": 32,
 			  "rl_in_size": 1024
 	        },
+      "original-sd-bidir-graph-mpnn" :
+	        {
+			  "state_description": "graph",
+              "g_layers": [256,256,256,256],
+              "question_injection_position": 0,
+			  "aggregation_position": -1,
+			  "bidirectional": true,
+			  "aggregation": "sum",
+			  "lr": 0.000005,
+			  "lr_scheduler": {
+                "type": "exp_step_restarts",
+                "T": 3000,
+                "max": 0.0005,
+                "step": 20,
+                "gamma": 2
+              },
+			  "mpnn_module": {
+                "initial_h_dim": 15,
+                "node_feat_dim": 64,
+                "out_dim": 128,
+                "drop_prob": 0,
+                "edge_feat_dim": 4
+			  },
+
+			  "dropouts": {"3": 0.5},
+			  "lstm_hidden": 128,
+			  "lstm_word_emb": 32,
+			  "rl_in_size": 1024
+	        },
 	 "original-sd-invert-graph" :
                 {
                           "state_description": "graph",

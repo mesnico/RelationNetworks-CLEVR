@@ -104,7 +104,7 @@ class RGCNLayer(nn.Module):
                 q = edges.src['h']
                 h = torch.cat([edges.src['h'], u])'''
 
-            h_src = edges.src['h']
+            h_src = edges.src['h_node']
             h_src = torch.bmm(h_src.unsqueeze(1), w).squeeze()
             # dropout before normalization
             h_src = self.edge_dropout(h_src)
@@ -112,7 +112,7 @@ class RGCNLayer(nn.Module):
             # msg = msg * edges.data['norm']
 
             if self.self_attention:
-                h_dst = edges.dst['h']
+                h_dst = edges.dst['h_node']
                 h_dst = torch.bmm(h_dst.unsqueeze(1), w).squeeze()
                 eij = self.a(torch.cat([h_src, h_dst], dim=1))
                 eij = F.leaky_relu(eij, negative_slope=0.2)
@@ -133,7 +133,7 @@ class RGCNLayer(nn.Module):
                 h_src = torch.matmul(eij, h_src).squeeze(2)
 
             out = torch.sum(h_src, dim=1)
-            return {'h': out}
+            return {'h_node': out}
 
         '''def apply_func(h):
             # h = nodes.data['h']
@@ -141,15 +141,15 @@ class RGCNLayer(nn.Module):
             return {'h': h}'''
 
         # calculate self loop
-        loop_message = torch.mm(g.ndata['h'], self.loop_weight)
+        loop_message = torch.mm(g.ndata['h_node'], self.loop_weight)
         loop_message = self.loop_dropout(loop_message)
 
         # receive message from neighbors and from myself (through self loop)
         g.update_all(message_func, aggregate_func, None)
-        g.ndata['h'] += loop_message
+        g.ndata['h_node'] += loop_message
 
         # compute global graph feature and return it
-        sum_node_feats = dgl.sum_nodes(g, 'h')
+        sum_node_feats = dgl.sum_nodes(g, 'h_node')
         if self.is_input_layer:
             u = sum_node_feats
         else:
@@ -158,10 +158,10 @@ class RGCNLayer(nn.Module):
         u = F.relu(u)
 
         # process nodes features after aggregation
-        n = g.ndata['h']
+        n = g.ndata['h_node']
         n = self.apply_node(n)
         n = F.relu(n)
-        g.ndata['h'] = n
+        g.ndata['h_node'] = n
 
         return u
 

@@ -254,7 +254,7 @@ def load_graphs(clevr_scenes):
                            shape=obj['shape'],
                            material=obj['material'],
                            size=obj['size'],
-                           h=node_feat
+                           h_node=node_feat
                            )
 
         relationships = scene['relationships']
@@ -263,8 +263,12 @@ def load_graphs(clevr_scenes):
                 for b_idx, row in enumerate(rel):
                     for a_idx in row:
                         rel_id = clevr_relations_attrs.index(name)
+                        edge_feat = torch.zeros(4)
+                        edge_feat[rel_id] = 1
+
                         rel_id = torch.tensor(rel_id)
-                        graph.add_edge(a_idx, b_idx, rel_name=name, rel_type=rel_id)
+
+                        graph.add_edge(a_idx, b_idx, rel_name=name, rel_type=rel_id, h_edge=edge_feat)
 
         graphs[scene['image_index']] = graph
     return graphs
