@@ -53,6 +53,96 @@
 			  "lstm_word_emb": 32,
 			  "rl_in_size": 512
 	        },
+      "original-sd-bidir-graph-dropout1" :
+	        {
+			  "state_description": "graph",
+              "g_layers": [256,256,256,256],
+              "question_injection_position": 0,
+			  "aggregation_position": -1,
+			  "bidirectional": true,
+			  "aggregation": "sum",
+			  "lr": 0.000005,
+			  "lr_scheduler": {
+                "type": "exp_step_restarts",
+                "T": 3000,
+                "max": 0.0005,
+                "step": 20,
+                "gamma": 2
+              },
+			  "rgcn_module": {
+                "initial_h_dim": 15,
+                "h_dim": 32,
+                "out_dim": 32,
+                "num_rels": 4,
+                "edge_drop_prob": 0.15,
+                "loop_drop_prob": 0.1
+			  },
+
+			  "dropouts": {"3": 0.5},
+			  "lstm_hidden": 128,
+			  "lstm_word_emb": 32,
+			  "rl_in_size": 1024
+	        },
+      "original-sd-bidir-graph-dropout2" :
+	        {
+			  "state_description": "graph",
+              "g_layers": [256,256,256,256],
+              "question_injection_position": 0,
+			  "aggregation_position": -1,
+			  "bidirectional": true,
+			  "aggregation": "sum",
+			  "lr": 0.000005,
+			  "lr_scheduler": {
+                "type": "exp_step_restarts",
+                "T": 3000,
+                "max": 0.0005,
+                "step": 20,
+                "gamma": 2
+              },
+			  "rgcn_module": {
+                "initial_h_dim": 15,
+                "h_dim": 128,
+                "out_dim": 128,
+                "num_rels": 4,
+                "edge_drop_prob": 0.10,
+                "loop_drop_prob": 0.05
+			  },
+
+			  "dropouts": {"3": 0.5},
+			  "lstm_hidden": 128,
+			  "lstm_word_emb": 32,
+			  "rl_in_size": 1024
+	        },
+      "original-sd-bidir-graph1" :
+	        {
+			  "state_description": "graph",
+              "g_layers": [256,256,256,256],
+              "question_injection_position": 0,
+			  "aggregation_position": -1,
+			  "bidirectional": true,
+			  "aggregation": "sum",
+			  "lr": 0.000005,
+			  "lr_scheduler": {
+                "type": "exp_step_restarts",
+                "T": 3000,
+                "max": 0.0005,
+                "step": 20,
+                "gamma": 2
+              },
+			  "rgcn_module": {
+                "initial_h_dim": 15,
+                "h_dim": 64,
+                "out_dim": 64,
+                "num_rels": 4,
+                "edge_drop_prob": 0,
+                "loop_drop_prob": 0
+			  },
+
+			  "dropouts": {"3": 0.5},
+			  "lstm_hidden": 128,
+			  "lstm_word_emb": 32,
+			  "rl_in_size": 1024
+	        },
 	 "original-sd-invert-graph" :
                 {
                           "state_description": "graph",

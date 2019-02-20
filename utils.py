@@ -230,6 +230,8 @@ def load_graphs(clevr_scenes):
         'size': ['large', 'small']
     }
 
+    clevr_relations_attrs = ['front', 'right', 'behind', 'left']
+
     '''with open(scene_json_filename, 'r') as jsonf:
         clevr_scenes = json.load(jsonf)['scenes']  # [0:1000]   # TODO: remove this, is only for debugging
     '''
@@ -257,10 +259,10 @@ def load_graphs(clevr_scenes):
 
         relationships = scene['relationships']
         for name, rel in relationships.items():
-            if name in ('right', 'front'):
+            # if name in ('right', 'front'):
                 for b_idx, row in enumerate(rel):
                     for a_idx in row:
-                        rel_id = 0 if name == 'right' else 1
+                        rel_id = clevr_relations_attrs.index(name)
                         rel_id = torch.tensor(rel_id)
                         graph.add_edge(a_idx, b_idx, rel_name=name, rel_type=rel_id)
 

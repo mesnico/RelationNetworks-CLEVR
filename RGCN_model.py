@@ -17,7 +17,7 @@ import pdb
 
 class RGCNLayer(nn.Module):
     def __init__(self, in_feat_dim, out_feat_dim, glob_feat_dim, num_rels, num_bases=-1, edge_drop_prob=0.4,
-                 loop_drop_prob=0.2, bias=True, is_input_layer=False):
+                 loop_drop_prob=0.2, bias=True, is_input_layer=False, self_attention=True):
         super(RGCNLayer, self).__init__()
         self.out_feat_dim = out_feat_dim
         self.glob_feat_dim = glob_feat_dim
@@ -25,6 +25,7 @@ class RGCNLayer(nn.Module):
         self.num_bases = num_bases
         self.is_input_layer = is_input_layer
         self.in_feat_dim = in_feat_dim
+        self.self_attention = self_attention
 
         # sanity check
         if self.num_bases <= 0 or self.num_bases > self.num_rels:
@@ -72,6 +73,10 @@ class RGCNLayer(nn.Module):
         self.edge_dropout = nn.Dropout(edge_drop_prob)
         self.loop_dropout = nn.Dropout(loop_drop_prob)
 
+        # self attention
+        if self_attention:
+            self.a = nn.Linear(out_feat_dim * 2, 1)
+
     def forward(self, g, u):
         if self.num_bases < self.num_rels:
             # generate all weights from bases (equation (3))
@@ -98,14 +103,37 @@ class RGCNLayer(nn.Module):
             else:
                 q = edges.src['h']
                 h = torch.cat([edges.src['h'], u])'''
-            h = edges.src['h']
 
-            msg = torch.bmm(h.unsqueeze(1), w).squeeze()
+            h_src = edges.src['h']
+            h_src = torch.bmm(h_src.unsqueeze(1), w).squeeze()
             # dropout before normalization
-            msg = self.edge_dropout(msg)
+            h_src = self.edge_dropout(h_src)
             # TODO: norm???
             # msg = msg * edges.data['norm']
-            return {'msg': msg}
+
+            if self.self_attention:
+                h_dst = edges.dst['h']
+                h_dst = torch.bmm(h_dst.unsqueeze(1), w).squeeze()
+                eij = self.a(torch.cat([h_src, h_dst], dim=1))
+                eij = F.leaky_relu(eij, negative_slope=0.2)
+                return {'h_src': h_src, 'eij': eij}
+            else:
+                return {'h_src': h_src}
+
+        def aggregate_func(nodes):
+            h_src = nodes.mailbox['h_src']
+
+            if self.self_attention:
+                # calculate softmax on the entering edges
+                eij = nodes.mailbox['eij']
+                eij = F.softmax(eij, dim=1)
+                test = torch.sum(eij, dim=1)
+                eij = eij.unsqueeze(2)
+                h_src = h_src.unsqueeze(2)
+                h_src = torch.matmul(eij, h_src).squeeze(2)
+
+            out = torch.sum(h_src, dim=1)
+            return {'h': out}
 
         '''def apply_func(h):
             # h = nodes.data['h']
@@ -117,7 +145,7 @@ class RGCNLayer(nn.Module):
         loop_message = self.loop_dropout(loop_message)
 
         # receive message from neighbors and from myself (through self loop)
-        g.update_all(message_func, fn.sum(msg='msg', out='h'), None)
+        g.update_all(message_func, aggregate_func, None)
         g.ndata['h'] += loop_message
 
         # compute global graph feature and return it
@@ -158,15 +186,19 @@ class RGCNModel(nn.Module):
         # create rgcn layers
         self.gc1 = RGCNLayer(self.initial_h_dim, self.h_dim, self.glob_dim, self.num_rels, is_input_layer=True,
                              edge_drop_prob=hyp['edge_drop_prob'], loop_drop_prob=hyp['loop_drop_prob'])
-        self.gc2 = RGCNLayer(self.h_dim, self.h_dim, self.glob_dim, self.num_rels,
+        self.gc2 = RGCNLayer(self.h_dim, self.h_dim, self.glob_dim, self.num_rels, is_input_layer=True,
                              edge_drop_prob=hyp['edge_drop_prob'], loop_drop_prob=hyp['loop_drop_prob'])
-        self.gc3 = RGCNLayer(self.h_dim, self.out_dim, self.glob_dim, self.num_rels,
+        #self.gc3 = RGCNLayer(self.h_dim, self.h_dim, self.glob_dim, self.num_rels, is_input_layer=True,
+        #                     edge_drop_prob=hyp['edge_drop_prob'], loop_drop_prob=hyp['loop_drop_prob'])
+        self.gc4 = RGCNLayer(self.h_dim, self.out_dim, self.glob_dim, self.num_rels, is_input_layer=True,
                              edge_drop_prob=hyp['edge_drop_prob'], loop_drop_prob=hyp['loop_drop_prob'])
+
 
     def forward(self, g):
 
-        u = self.gc1(g, None)
-        u = self.gc2(g, u)
-        u = self.gc3(g, u)
+        self.gc1(g, None)
+        self.gc2(g, None)
+        #u = self.gc3(g, None)
+        u = self.gc4(g, None)
 
         return u
