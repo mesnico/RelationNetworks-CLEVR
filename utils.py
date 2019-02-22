@@ -176,8 +176,10 @@ def load_tensor_data(data_batch, cuda): #, volatile=False):
     if cuda:
         qst, label, qst_len = qst.cuda(), label.cuda(), qst_len.cuda()
         if type(img) is dgl.BatchedDGLGraph:
-            img.ndata['h'] = img.ndata['h'].cuda()
+            img.ndata['h_node'] = img.ndata['h_node'].cuda()
+            img.ndata['msg'] = torch.zeros((img.ndata['h_node'].size()[0],1)).cuda()
             img.edata['rel_type'] = img.edata['rel_type'].cuda()
+            img.edata['h_edge'] = img.edata['h_edge'].cuda()
         else:
             img = img.cuda()
 
@@ -195,7 +197,7 @@ class JsonCache:
                 with open(cached_filename, 'rb') as f:
                     self.out = pickle.load(f)
             else:
-                self.out = shelve.open(cached_filename)
+                self.out = shelve.open(cached_filename, 'r')
                 
         else:
             with open(json_filename, 'r') as json_file:

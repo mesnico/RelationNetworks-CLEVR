@@ -111,8 +111,8 @@ class ClevrDatasetGraphs(Dataset):
         dgl_graph = dgl.DGLGraph(multigraph=True)
         dgl_graph.from_networkx(
             nx_graph,
-            edge_attrs=['rel_type'],
-            node_attrs=['h']
+            edge_attrs=['rel_type','h_edge'],
+            node_attrs=['h_node']
         )
 
         question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'],

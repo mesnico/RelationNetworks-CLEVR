@@ -17,11 +17,11 @@ Note: Here, differently from RGCN, edges have their own embeddings
 
 class MPNNLayer(nn.Module):
     def __init__(self, in_node_feat_dim, out_node_feat_dim, edge_feat_dim, glob_feat_dim, drop_prob=0.4, is_input_layer=False):
-        super(RGCNLayer, self).__init__()
-        self.out_feat_dim = out_feat_dim
+        super().__init__()
+        self.out_node_feat_dim = out_node_feat_dim
         self.glob_feat_dim = glob_feat_dim
         self.is_input_layer = is_input_layer
-        self.in_feat_dim = in_node_feat_dim
+        self.in_node_feat_dim = in_node_feat_dim
 
         # process messages from other nodes (plus the receiving node itself)
         self.process_message = nn.Sequential(
@@ -32,7 +32,10 @@ class MPNNLayer(nn.Module):
         )
 
         # initialize apply-node and apply-global layers
-        self.apply_node = nn.Linear(out_node_feat_dim, out_node_feat_dim)
+        self.apply_node = nn.Sequential(
+            nn.Linear(in_node_feat_dim + out_node_feat_dim, out_node_feat_dim),
+            nn.ReLU()
+        )
         if self.is_input_layer:
             # input to global apply function is just the aggregated node feature without global input graph feature
             glob_in_dim = out_node_feat_dim
@@ -61,12 +64,13 @@ class MPNNLayer(nn.Module):
         def message_func(edges):
             h_src = edges.src['h_node']
             h_dst = edges.dst['h_node']
-            edge_data = edges['h_edge']
+            edge_data = edges.data['h_edge']
 
-            msg = torch.cat([h_src, h_dst, edge_data])
+            msg = torch.cat([h_src, h_dst, edge_data], dim=1)
 
             msg = self.process_message(msg)
-            return {'msg': msg}
+            return {'msg': msg, 'h_dst': h_dst}
+
 
         '''def apply_func(h):
             # h = nodes.data['h']
@@ -74,12 +78,13 @@ class MPNNLayer(nn.Module):
             return {'h': h}'''
 
         # receive message from neighbors and from myself (through self loop)
-        g.update_all(message_func, fn.sum(msg='msg', out='h_node'), None)
+        g.update_all(message_func, fn.sum(msg='msg', out='msg'), None)
 
         # process nodes features after aggregation
         n = g.ndata['h_node']
-        n = self.apply_node(n)
-        g.ndata['h_node'] = n
+        msg = g.ndata['msg']
+        out = self.apply_node(torch.cat([n, msg], dim=1))
+        g.ndata['h_node'] = out
 
         # compute global graph feature and return it
         sum_node_feats = dgl.sum_nodes(g, 'h_node')
