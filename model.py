@@ -71,7 +71,7 @@ class QuestionEmbedModel(nn.Module):
         
         return qst_emb
 
-class RelationalLayerBase(nn.Module):
+class RelationalBase(nn.Module):
     def __init__(self, in_size, out_size, qst_size, hyp):
         super().__init__()
         
@@ -86,7 +86,7 @@ class RelationalLayerBase(nn.Module):
         super().cuda()
     
 
-class RelationalLayer(RelationalLayerBase):
+class RelationalModule(RelationalBase):
     def __init__(self, in_size, out_size, qst_size, hyp, extraction=False):
         super().__init__(in_size, out_size, qst_size, hyp)
 
@@ -176,7 +176,7 @@ class RelationalLayer(RelationalLayerBase):
                 x_ = g_layer(x_)
 
                 if self.extraction:
-                    return None                
+                    return None
             else:
                 x_ = g_layer(x_)
 
@@ -196,6 +196,50 @@ class RelationalLayer(RelationalLayerBase):
 
         return F.log_softmax(x_, dim=1)
 
+
+class TransformerModule(RelationalBase):
+    def __init__(self, in_size, out_size, qst_size, hyp, num_encoder_layers=6, extraction=False):
+        super().__init__(in_size, out_size, qst_size, hyp)
+        transformer_layer = nn.TransformerEncoderLayer(d_model=in_size+qst_size, nhead=7, dim_feedforward=256,
+                                                      dropout=0.1, activation='relu')
+        self.transformer_encoder = nn.TransformerEncoder(transformer_layer, num_layers=num_encoder_layers)
+
+        self.f_fc1 = nn.Linear(qst_size + in_size, hyp["f_fc1"])
+        self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
+        self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
+
+    def forward(self, x, qst):
+        # x = (B x 8*8 x 24)
+        # qst = (B x 128)
+        """g"""
+        b, d, k = x.size()
+        qst_size = qst.size()[1]
+
+        # add question everywhere
+        qst = torch.unsqueeze(qst, 1)  # (B x 1 x 128)
+        qst = qst.repeat(1, d, 1)  # (B x 64 x 128)
+
+        # cast all pairs against each other
+        x_cat = torch.cat([x, qst], 2)
+
+        # pass through the transformer
+        x_cat = x_cat.permute(1, 0, 2)     # (64 x B x qst_size+in_size)
+        out = self.transformer_encoder(x_cat)
+        out = out.permute(1, 0, 2)  # (B x 64 x qst_size+in_size)
+
+        # aggregate
+        out = out.sum(1)
+
+        # final processing
+        x_f = self.f_fc1(out)
+        x_f = F.relu(x_f)
+        x_f = self.f_fc2(x_f)
+        x_f = F.relu(x_f)
+        x_f = self.f_fc3(x_f)
+
+        return F.log_softmax(x_f, dim=1)
+
+
 class RN(nn.Module):
     def __init__(self, args, hyp, extraction=False):
         super(RN, self).__init__()
@@ -214,11 +258,17 @@ class RN(nn.Module):
         # RELATIONAL LAYER
         self.rl_in_size = hyp["rl_in_size"]
         self.rl_out_size = args.adict_size
-        self.rl = RelationalLayer(self.rl_in_size, self.rl_out_size, hidden_size*2 if bidirectional else hidden_size, hyp, extraction) 
-        if hyp["question_injection_position"] != 0:          
-            print('Supposing IR model')
+        if 'reasoning_module' not in hyp or hyp['reasoning_module'] == 'rn':
+            self.rl = RelationalModule(self.rl_in_size, self.rl_out_size, hidden_size * 2 if bidirectional else hidden_size, hyp, extraction)
+            print('Using standard RN module')
+        elif hyp['reasoning_module'] == 'transformer':
+            self.rl = TransformerModule(self.rl_in_size, self.rl_out_size, hidden_size*2 if bidirectional else hidden_size, hyp, extraction=extraction)
+            print('Using transformer module')
+
+        if 'question_injection_position' in hyp and hyp["question_injection_position"] != 0:
+            print('IR model')
         else:     
-            print('Supposing original DeepMind model')
+            print('Non IR model')
 
     def forward(self, img, qst_idxs, qst_lengths):
         if self.state_desc:

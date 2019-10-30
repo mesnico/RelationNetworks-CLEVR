@@ -26,13 +26,15 @@ import math
 import custom_lr_schedulers
 from clevr_dataset_connector import ClevrDataset, ClevrDatasetStateDescription
 from model import RN
+from tensorboardX import SummaryWriter
 
 import pdb
 
 ALL_IN_MEMORY_CACHE = True
 #torch.backends.cudnn.enabled = False
 
-def train(data, model, optimizer, epoch, args):
+
+def train(data, model, optimizer, epoch, logger, args):
     model.train()
 
     avg_loss = 0.0
@@ -70,8 +72,9 @@ def train(data, model, optimizer, epoch, args):
             processed = minibatch_idx
             n_samples = len(data)
             progress = float(processed) / n_samples
-            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {}'.format(
-                epoch, processed, n_samples, progress, avg_loss))
+            #print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {}'.format(
+            #    epoch, processed, n_samples, progress, avg_loss))
+            logger.add_scalars("losses", {'train': avg_loss}, (epoch-1) * len(data) + minibatch_idx)
             avg_loss = 0.0
             n_batches = 0
 
@@ -148,14 +151,19 @@ def test(data, model, epoch, dictionaries, args):
     invalids_perc = invalids / n_samples      
     accuracy = corrects / n_samples
 
-    print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{}); Invalids = {:.2%} ({:g}/{}); Test loss = {}'.format(epoch, accuracy, corrects, n_samples, invalids_perc, invalids, n_samples, avg_loss))
+    accuracies_dict = {'total': accuracy}
+    invalids_dict = {'total': invalids_perc}
+
+    #print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{}); Invalids = {:.2%} ({:g}/{}); Test loss = {}'.format(epoch, accuracy, corrects, n_samples, invalids_perc, invalids, n_samples, avg_loss))
     for v in class_n_samples.keys():
         accuracy = 0
         invalid = 0
         if class_n_samples[v] != 0:
             accuracy = class_corrects[v] / class_n_samples[v]
             invalid = class_invalids[v] / class_n_samples[v]
-        print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
+            accuracies_dict.update({v: accuracy})
+            invalids_dict.update({v: invalid})
+        #print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
 
     # dump results on file
     filename = os.path.join(args.test_results_dir, 'test.pickle')
@@ -169,7 +177,8 @@ def test(data, model, epoch, dictionaries, args):
         'global_accuracy':accuracy
     }
     pickle.dump(dump_object, open(filename,'wb'))
-    return avg_loss
+    return avg_loss, accuracies_dict, invalids_dict
+
 
 def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, state_description = False):
     if not state_description:
@@ -228,9 +237,13 @@ def main(args):
             lr_params += k+str(v)+'_'
     args.model_dirs = './model_{}{}_drop{}_bs{}_{}_lrstart{}_'+ \
                       '{}invquests-{}_clipnorm{}_glayers{}_qinj{}'
+    dropout_str = hyp['dropouts'] if 'dropouts' in hyp else ''
+    aggregation_str = hyp['aggregation'] if 'aggregation' in hyp else ''
+    g_layers_str = hyp['g_layers'] if 'g_layers' in hyp else ''
+    q_inj_pos_str = hyp['question_injection_position'] if 'question_injection_position' in hyp else ''
     args.model_dirs = args.model_dirs.format(
-                        args.model, '-transf_learn' if args.transfer_learn else '', hyp['dropouts'], args.batch_size, hyp['aggregation'], hyp['lr'], lr_params,
-                        args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'])
+                        args.model, '-transf_learn' if args.transfer_learn else '', dropout_str, args.batch_size, aggregation_str, hyp['lr'], lr_params,
+                        args.invert_questions, args.clip_norm, g_layers_str, q_inj_pos_str)
     if not os.path.exists(args.model_dirs):
         os.makedirs(args.model_dirs)
     #create a file in this folder containing the overall configuration
@@ -240,6 +253,9 @@ def main(args):
     filename = os.path.join(args.model_dirs,'config.txt')
     with open(filename,'w') as config_file:
         config_file.write(all_configuration)
+
+    # create the tensorboardX logger
+    logger = SummaryWriter(args.model_dirs)
 
     args.features_dirs = './features'
     args.test_results_dir = './test_results'
@@ -287,6 +303,8 @@ def main(args):
             scheduler = custom_lr_schedulers.CosineAnnealingRestartsLR(optimizer, T=shyp['T'], eta_min=shyp['eta_min'], T_mult=shyp['T_mult'], eta_mult=shyp['eta_mult'])
         elif shyp['type'] == 'exp_step_restarts':
             scheduler = custom_lr_schedulers.ClampedStepRestartsLR(optimizer, shyp['T'], shyp['step'], gamma=shyp['gamma'], maximum_lr=shyp['max'])
+        elif shyp['type'] == 'reduce_on_plateau':
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
         else:
             raise ValueError('LR algorithm not found: {}'.format(sype['type']))
 
@@ -385,7 +403,8 @@ def main(args):
 
         mod_patience = args.patience // args.validation_interval
         print('Patience is {} epochs; with validation interval of {} it is set to {}'.format(args.patience, args.validation_interval, mod_patience))
-        es = EarlyStopping(patience=mod_patience)
+        if args.patience > 0:
+            es = EarlyStopping(patience=mod_patience)
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         
         #scheduler.last_epoch = start_epoch
@@ -394,23 +413,30 @@ def main(args):
         clevr_train_loader, clevr_test_loader = reload_loaders(clevr_dataset_train, clevr_dataset_test, args.batch_size, args.test_batch_size, hyp['state_description'])
 
         for epoch in progress_bar:
-            
-            if scheduler != None:
-                scheduler.step()
                     
             print('Current learning rate: {}'.format(optimizer.param_groups[0]['lr']))
                 
             # TRAIN
             progress_bar.set_description('TRAIN')
-            train(clevr_train_loader, model, optimizer, epoch, args)
+            train(clevr_train_loader, model, optimizer, epoch, logger, args)
+
+            if scheduler is not None and shyp['type'] != 'reduce_on_plateau':
+                scheduler.step()
 
             # TEST
             if epoch % args.validation_interval == 0:
                 progress_bar.set_description('TEST')
-                avg_loss = test(clevr_test_loader, model, epoch, dictionaries, args)
+                avg_loss, accuracies, invalids = test(clevr_test_loader, model, epoch, dictionaries, args)
+
+                if scheduler is not None and shyp['type'] == 'reduce_on_plateau':
+                    scheduler.step(avg_loss)
+
+                logger.add_scalars("losses", {'test': avg_loss}, epoch*len(clevr_train_loader))
+                logger.add_scalars("accuracy", accuracies, epoch)
+                logger.add_scalars("invalids", invalids, epoch)
 
                 #check for early-stop
-                if es.step(avg_loss):
+                if args.patience > 0 and es.step(avg_loss):
                     print('Early-stopping at epoch {}'.format(epoch))
                     break
 
@@ -455,7 +481,7 @@ if __name__ == '__main__':
     parser.add_argument('--validation-interval', type=int, default=5, 
                         help='number of epochs before next validation')
     parser.add_argument('--patience', type=int, default=50, 
-                        help='number of epochs before stopping training if no improvements occur')
+                        help='number of epochs before stopping training if no improvements occur (-1 to disable)')
     parser.add_argument('--auto-resume', action='store_true', default=False,
                         help='Auto resume from folder pertaining to the current experiment')
     parser.add_argument('--minibatches', type=int, default=1, 
