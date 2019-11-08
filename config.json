@@ -38,12 +38,12 @@
       "f_fc1": 256,
       "f_fc2": 256
     },
-    "original-fp-transformer-reduceonplateau": {
+    "original-fp-full_transformer_nodropout-reduceonplateau": {
       "state_description": false,
       "reasoning_module": "transformer",
       "bidirectional": false,
-      "lstm_hidden": 128,
-      "lstm_word_emb": 32,
+      "w_embed_dim": 128,
+      "q_embed_dim": 128,
       "rl_in_size": 26,
       "lr": 0.00025,
       "lr_scheduler": {

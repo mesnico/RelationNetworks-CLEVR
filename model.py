@@ -48,7 +48,7 @@ class QuestionEmbedModel(nn.Module):
     def __init__(self, in_size, embed=32, hidden=128, bidirectional=False):
         super(QuestionEmbedModel, self).__init__()
         
-        self.wembedding = nn.Embedding(in_size + 1, embed)  #word embeddings have size 32
+        self.wembedding = nn.Embedding(in_size + 1, embed, padding_idx=0)  #word embeddings have size 32
         self.lstm = nn.LSTM(embed, hidden, batch_first=True, bidirectional=True)  # Input dim is 32, output dim is the question embedding
         self.hidden = hidden
         self.bidirectional = bidirectional
@@ -70,6 +70,85 @@ class QuestionEmbedModel(nn.Module):
         	qst_emb = qst_emb[0]
         
         return qst_emb
+
+
+class PositionalEncoding(nn.Module):
+    r"""Inject some information about the relative or absolute position of the tokens
+        in the sequence. The positional encodings have the same dimension as
+        the embeddings, so that the two can be summed. Here, we use sine and cosine
+        functions of different frequencies.
+    .. math::
+        \text{PosEncoder}(pos, 2i) = sin(pos/10000^(2i/d_model))
+        \text{PosEncoder}(pos, 2i+1) = cos(pos/10000^(2i/d_model))
+        \text{where pos is the word position and i is the embed idx)
+    Args:
+        d_model: the embed dim (required).
+        dropout: the dropout value (default=0.1).
+        max_len: the max. length of the incoming sequence (default=5000).
+    Examples:
+        >>> pos_encoder = PositionalEncoding(d_model)
+    """
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        r"""Inputs of forward function
+        Args:
+            x: the sequence fed to the positional encoder model (required).
+        Shape:
+            x: [sequence length, batch size, embed dim]
+            output: [sequence length, batch size, embed dim]
+        Examples:
+            >>> output = pos_encoder(x)
+        """
+
+        x = x + self.pe[:x.size(0), :]
+        return self.dropout(x)
+        # return x
+
+
+class QuestionEmbedTransformerModel(nn.Module):
+    def __init__(self, in_size, embed=128, num_encoder_layers=6, max_q_len=100):
+        super().__init__()
+        self.wembedding = nn.Embedding(in_size + 1, embed, padding_idx=0)  # word embeddings have size 'embed'
+        transformer_layer = nn.TransformerEncoderLayer(d_model=embed, nhead=8, dim_feedforward=256,
+                                                       dropout=0.1, activation='relu')
+        self.transformer_encoder = nn.TransformerEncoder(transformer_layer, num_layers=num_encoder_layers)
+        self.pos_encoder = PositionalEncoding(embed, dropout=0.5, max_len=max_q_len)
+
+    def forward(self, question, lengths):
+        # calculate the mask for every question in the batch
+        masks = torch.ones(question.shape[0], question.shape[1]).bool().to(question.device)
+        for m, l in zip(masks, lengths):
+            m[:l] = 0
+        wembed = self.wembedding(question)
+
+        wembed = wembed.permute(1, 0, 2)
+        wembed = self.pos_encoder(wembed)
+
+        # pass through the transformer
+        out_wembed = self.transformer_encoder(wembed, src_key_padding_mask=masks)
+        out_wembed = out_wembed.permute(1, 0, 2)  # (B x seq_len x embed)
+
+        # first, manually zero the padding words
+        for q, l in zip(out_wembed, lengths):
+            q[l:] = 0
+
+        # then, aggregate the word embeddings to obtain the sentence embedding (average over the seq_len)
+        qembed = out_wembed.sum(1)     # (B x embed)
+        qembed *= torch.rsqrt(lengths.unsqueeze(1).float())
+        return qembed
+
 
 class RelationalBase(nn.Module):
     def __init__(self, in_size, out_size, qst_size, hyp):
@@ -197,7 +276,7 @@ class RelationalModule(RelationalBase):
         return F.log_softmax(x_, dim=1)
 
 
-class TransformerModule(RelationalBase):
+class RelationalTransformerModule(RelationalBase):
     def __init__(self, in_size, out_size, qst_size, hyp, num_encoder_layers=6, extraction=False):
         super().__init__(in_size, out_size, qst_size, hyp)
         transformer_layer = nn.TransformerEncoderLayer(d_model=in_size+qst_size, nhead=7, dim_feedforward=256,
@@ -248,21 +327,24 @@ class RN(nn.Module):
         
         # CNN
         self.conv = ConvInputModel()
-        self.state_desc = hyp['state_description']            
-            
-        # LSTM
-        hidden_size = hyp["lstm_hidden"]
-        bidirectional = hyp["bidirectional"]
-        self.text = QuestionEmbedModel(args.qdict_size, embed=hyp["lstm_word_emb"], hidden=hidden_size, bidirectional=bidirectional)
+        self.state_desc = hyp['state_description']
         
         # RELATIONAL LAYER
         self.rl_in_size = hyp["rl_in_size"]
         self.rl_out_size = args.adict_size
         if 'reasoning_module' not in hyp or hyp['reasoning_module'] == 'rn':
+            # LSTM
+            hidden_size = hyp["q_embed_dim"]
+            bidirectional = hyp["bidirectional"]
+            self.text = QuestionEmbedModel(args.qdict_size, embed=hyp["w_embed_dim"], hidden=hidden_size,
+                                           bidirectional=bidirectional)
+            # RN
             self.rl = RelationalModule(self.rl_in_size, self.rl_out_size, hidden_size * 2 if bidirectional else hidden_size, hyp, extraction)
             print('Using standard RN module')
         elif hyp['reasoning_module'] == 'transformer':
-            self.rl = TransformerModule(self.rl_in_size, self.rl_out_size, hidden_size*2 if bidirectional else hidden_size, hyp, extraction=extraction)
+            assert hyp["w_embed_dim"] == hyp["q_embed_dim"]
+            self.text = QuestionEmbedTransformerModel(args.qdict_size, embed=hyp["w_embed_dim"])    # w_embed_dim == q_embed_dim
+            self.rl = RelationalTransformerModule(self.rl_in_size, self.rl_out_size, hyp["q_embed_dim"], hyp, extraction=extraction)
             print('Using transformer module')
 
         if 'question_injection_position' in hyp and hyp["question_injection_position"] != 0:
