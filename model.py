@@ -277,10 +277,11 @@ class RelationalModule(RelationalBase):
 
 
 class RelationalTransformerModule(RelationalBase):
-    def __init__(self, in_size, out_size, visual_word_embed_size, hyp, extraction=False):
-        super().__init__(in_size, out_size, visual_word_embed_size, hyp)
+    def __init__(self, in_size, out_size, visual_word_embed_size, word_embed_size, hyp, extraction=False):
+        super().__init__(in_size, out_size, None, hyp)
 
         self.num_encoder_layers_text = hyp["encoder_layers_text"]
+        self.num_encoder_layers_visualtext = hyp["encoder_layers_visualtext"]
         self.num_encoder_layers_visual = hyp["question_injection_position"]
 
         if self.num_encoder_layers_visual != 0:
@@ -291,16 +292,23 @@ class RelationalTransformerModule(RelationalBase):
             self.transformer_encoder_visual = nn.TransformerEncoder(transformer_layer_visual,
                                                                     num_layers=self.num_encoder_layers_visual)
 
-        transformer_layer_text = nn.TransformerEncoderLayer(d_model=visual_word_embed_size, nhead=8, dim_feedforward=256,
+        transformer_layer_text = nn.TransformerEncoderLayer(d_model=word_embed_size, nhead=8, dim_feedforward=256,
                                                             dropout=0.1, activation='relu')
         self.transformer_encoder_text = nn.TransformerEncoder(transformer_layer_text,
                                                               num_layers=self.num_encoder_layers_text)
 
+        transformer_layer_visualtext = nn.TransformerEncoderLayer(d_model=visual_word_embed_size, nhead=8, dim_feedforward=256,
+                                                            dropout=0.1, activation='relu')
+        self.transformer_encoder_visualtext = nn.TransformerEncoder(transformer_layer_visualtext,
+                                                              num_layers=self.num_encoder_layers_visualtext)
+
         self.visual_map = nn.Linear(in_size, visual_word_embed_size)
+        self.textual_map = nn.Linear(word_embed_size, visual_word_embed_size)
 
         self.f_fc1 = nn.Linear(visual_word_embed_size, hyp["f_fc1"])
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
+        self.dropout = nn.Dropout()
 
     def forward(self, x, qst, qst_lengths):
         # x = (B x 8*8 x 26)
@@ -309,15 +317,24 @@ class RelationalTransformerModule(RelationalBase):
         b, d, k = x.size()
         qst_len = qst.size()[1]
 
-        # calculate the mask for every visual-position+question in the batch
-        masks = torch.ones(b, qst_len + d).bool().to(qst.device)
-        for m, l in zip(masks, qst_lengths):
+        # calculate the mask for every question in the batch
+        text_masks = torch.ones(b, qst_len).bool().to(qst.device)
+        for m, l in zip(text_masks, qst_lengths):
+            # the mask keeps into consideration only the question variable length
+            m[:l] = 0
+
+        # calculate the mask for every question in the batch
+        visualtext_masks = torch.ones(b, qst_len + d).bool().to(qst.device)
+        for m, l in zip(visualtext_masks, qst_lengths):
             # the mask keeps into consideration only the question variable length
             m[:d+l] = 0
 
         x = self.visual_map(x)  # (B x 64 x 256)
         x = x.permute(1, 0, 2)  # (64 x B x 256)
-        qst = qst.permute(1, 0, 2)  # (len x B x 256)
+        qst = qst.permute(1, 0, 2)  # (len x B x 32)
+
+        qst = self.transformer_encoder_text(qst, src_key_padding_mask=text_masks)  # (len x B x 32)
+        qst = self.textual_map(qst.permute(1, 0, 2)).permute(1, 0, 2)  # (len x B x 256)
 
         if self.num_encoder_layers_visual != 0:
             # pass through the visual transformer encoder
@@ -326,12 +343,12 @@ class RelationalTransformerModule(RelationalBase):
         x_qst = torch.cat([x, qst], dim=0)  # (64+len x B x 256)
 
         # pass through the visual-text transformer
-        out = self.transformer_encoder_text(x_qst, src_key_padding_mask=masks)
+        out = self.transformer_encoder_visualtext(x_qst, src_key_padding_mask=visualtext_masks)
         out = out.permute(1, 0, 2)  # (B x 64+len x 256)
 
         # manually zero the padding words
-        for o, l in zip(out, qst_lengths):
-            o[d+l:] = 0
+        #for o, l in zip(out, qst_lengths):
+        #    o[d+l:] = 0
 
         # aggregate
         out = out.sum(1)
@@ -341,6 +358,7 @@ class RelationalTransformerModule(RelationalBase):
         x_f = F.relu(x_f)
         x_f = self.f_fc2(x_f)
         x_f = F.relu(x_f)
+        x_f = self.dropout(x_f)
         x_f = self.f_fc3(x_f)
 
         return F.log_softmax(x_f, dim=1)
@@ -369,8 +387,8 @@ class RN(nn.Module):
             self.rl = RelationalModule(self.rl_in_size, self.rl_out_size, hidden_size * 2 if bidirectional else hidden_size, hyp, extraction)
             print('Using standard RN module')
         elif hyp['reasoning_module'] == 'transformer':
-            self.text = QuestionEmbedTransformerModel(args.qdict_size, embed=hyp["visual_word_embed_dim"])    # w_embed_dim == q_embed_dim
-            self.rl = RelationalTransformerModule(self.rl_in_size, self.rl_out_size, hyp["visual_word_embed_dim"], hyp, extraction=extraction)
+            self.text = QuestionEmbedTransformerModel(args.qdict_size, embed=hyp["word_embed_dim"])    # w_embed_dim == q_embed_dim
+            self.rl = RelationalTransformerModule(self.rl_in_size, self.rl_out_size, hyp["visual_word_embed_dim"], hyp["word_embed_dim"], hyp, extraction=extraction)
             print('Using transformer module')
 
         if 'question_injection_position' in hyp and hyp["question_injection_position"] != 0:

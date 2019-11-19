@@ -24,11 +24,13 @@
       "state_description": false,
       "reasoning_module": "transformer",
       "bidirectional": false,
-      "visual_word_embed_dim": 256,
+      "visual_word_embed_dim": 192,
+      "word_embed_dim": 32,
       "rl_in_size": 26,
       "lr": 0.00025,
       "question_injection_position": 3,
       "encoder_layers_text": 3,
+      "encoder_layers_visualtext": 3,
       "lr_scheduler": {
         "type": "reduce_on_plateau"
       },
