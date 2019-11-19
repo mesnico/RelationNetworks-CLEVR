@@ -24,17 +24,13 @@
       "state_description": false,
       "reasoning_module": "transformer",
       "bidirectional": false,
-      "w_embed_dim": 26,
+      "visual_word_embed_dim": 256,
       "rl_in_size": 26,
       "lr": 0.00025,
       "question_injection_position": 3,
       "encoder_layers_text": 3,
       "lr_scheduler": {
-        "type": "exp_step_restarts",
-        "max": 1,
-        "step": 30,
-        "gamma": 0.1,
-        "T": 1000
+        "type": "reduce_on_plateau"
       },
       "f_fc1": 256,
       "f_fc2": 256

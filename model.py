@@ -98,7 +98,7 @@ class PositionalEncoding(nn.Module):
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
+        pe = pe.unsqueeze(0)
         self.register_buffer('pe', pe)
 
     def forward(self, x):
@@ -106,25 +106,25 @@ class PositionalEncoding(nn.Module):
         Args:
             x: the sequence fed to the positional encoder model (required).
         Shape:
-            x: [sequence length, batch size, embed dim]
-            output: [sequence length, batch size, embed dim]
+            x: [batch size, sequence length, embed dim]
+            output: [batch size, sequence length, embed dim]
         Examples:
             >>> output = pos_encoder(x)
         """
 
-        x = x + self.pe[:x.size(0), :]
+        x = x + self.pe[:, :x.size(1)]
         return self.dropout(x)
         # return x
 
 
 class QuestionEmbedTransformerModel(nn.Module):
-    def __init__(self, in_size, embed=128):  #, num_encoder_layers=6, max_q_len=100):
+    def __init__(self, in_size, embed=128, max_q_len=100):  #, num_encoder_layers=6, max_q_len=100):
         super().__init__()
         self.wembedding = nn.Embedding(in_size + 1, embed, padding_idx=0)  # word embeddings have size 'embed'
         # transformer_layer = nn.TransformerEncoderLayer(d_model=embed, nhead=8, dim_feedforward=256,
         #                                               dropout=0.1, activation='relu')
         # self.transformer_encoder = nn.TransformerEncoder(transformer_layer, num_layers=num_encoder_layers)
-        # self.pos_encoder = PositionalEncoding(embed, dropout=0.5, max_len=max_q_len)
+        self.pos_encoder = PositionalEncoding(embed, dropout=0.5, max_len=max_q_len)
 
     def forward(self, question, lengths):
         # calculate the mask for every question in the batch
@@ -134,7 +134,7 @@ class QuestionEmbedTransformerModel(nn.Module):
         wembed = self.wembedding(question)
 
         # wembed = wembed.permute(1, 0, 2)
-        # wembed = self.pos_encoder(wembed)
+        wembed = self.pos_encoder(wembed)
 
         # pass through the transformer
         # out_wembed = self.transformer_encoder(wembed, src_key_padding_mask=masks)
@@ -277,8 +277,8 @@ class RelationalModule(RelationalBase):
 
 
 class RelationalTransformerModule(RelationalBase):
-    def __init__(self, in_size, out_size, qst_size, hyp, extraction=False):
-        super().__init__(in_size, out_size, qst_size, hyp)
+    def __init__(self, in_size, out_size, visual_word_embed_size, hyp, extraction=False):
+        super().__init__(in_size, out_size, visual_word_embed_size, hyp)
 
         self.num_encoder_layers_text = hyp["encoder_layers_text"]
         self.num_encoder_layers_visual = hyp["question_injection_position"]
@@ -286,23 +286,25 @@ class RelationalTransformerModule(RelationalBase):
         if self.num_encoder_layers_visual != 0:
             # this transformer layer is employed only if we want to preprocess the image before
             # concatenating the question
-            transformer_layer_visual = nn.TransformerEncoderLayer(d_model=in_size, nhead=2, dim_feedforward=256,
+            transformer_layer_visual = nn.TransformerEncoderLayer(d_model=visual_word_embed_size, nhead=8, dim_feedforward=256,
                                                                   dropout=0.1, activation='relu')
             self.transformer_encoder_visual = nn.TransformerEncoder(transformer_layer_visual,
                                                                     num_layers=self.num_encoder_layers_visual)
 
-        transformer_layer_text = nn.TransformerEncoderLayer(d_model=in_size, nhead=2, dim_feedforward=256,
+        transformer_layer_text = nn.TransformerEncoderLayer(d_model=visual_word_embed_size, nhead=8, dim_feedforward=256,
                                                             dropout=0.1, activation='relu')
         self.transformer_encoder_text = nn.TransformerEncoder(transformer_layer_text,
                                                               num_layers=self.num_encoder_layers_text)
 
-        self.f_fc1 = nn.Linear(in_size, hyp["f_fc1"])
+        self.visual_map = nn.Linear(in_size, visual_word_embed_size)
+
+        self.f_fc1 = nn.Linear(visual_word_embed_size, hyp["f_fc1"])
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
 
     def forward(self, x, qst, qst_lengths):
         # x = (B x 8*8 x 26)
-        # qst = (B x len x 26)
+        # qst = (B x len x 256)
         """g"""
         b, d, k = x.size()
         qst_len = qst.size()[1]
@@ -311,20 +313,21 @@ class RelationalTransformerModule(RelationalBase):
         masks = torch.ones(b, qst_len + d).bool().to(qst.device)
         for m, l in zip(masks, qst_lengths):
             # the mask keeps into consideration only the question variable length
-            m[:x.shape[1]+l] = 0
+            m[:d+l] = 0
 
-        x = x.permute(1, 0, 2)  # (64 x B x 26)
-        qst = qst.permute(1, 0, 2)  # (len x B x 26)
+        x = self.visual_map(x)  # (B x 64 x 256)
+        x = x.permute(1, 0, 2)  # (64 x B x 256)
+        qst = qst.permute(1, 0, 2)  # (len x B x 256)
 
         if self.num_encoder_layers_visual != 0:
             # pass through the visual transformer encoder
-            x = self.transformer_encoder_visual(x)  # (64 x B x 26)
+            x = self.transformer_encoder_visual(x)  # (64 x B x 256)
 
-        x_qst = torch.cat([x, qst], dim=0)  # (64+len x B x 26)
+        x_qst = torch.cat([x, qst], dim=0)  # (64+len x B x 256)
 
         # pass through the visual-text transformer
         out = self.transformer_encoder_text(x_qst, src_key_padding_mask=masks)
-        out = out.permute(1, 0, 2)  # (B x 64+len x 26)
+        out = out.permute(1, 0, 2)  # (B x 64+len x 256)
 
         # manually zero the padding words
         for o, l in zip(out, qst_lengths):
@@ -366,8 +369,8 @@ class RN(nn.Module):
             self.rl = RelationalModule(self.rl_in_size, self.rl_out_size, hidden_size * 2 if bidirectional else hidden_size, hyp, extraction)
             print('Using standard RN module')
         elif hyp['reasoning_module'] == 'transformer':
-            self.text = QuestionEmbedTransformerModel(args.qdict_size, embed=hyp["w_embed_dim"])    # w_embed_dim == q_embed_dim
-            self.rl = RelationalTransformerModule(self.rl_in_size, self.rl_out_size, hyp["w_embed_dim"], hyp, extraction=extraction)
+            self.text = QuestionEmbedTransformerModel(args.qdict_size, embed=hyp["visual_word_embed_dim"])    # w_embed_dim == q_embed_dim
+            self.rl = RelationalTransformerModule(self.rl_in_size, self.rl_out_size, hyp["visual_word_embed_dim"], hyp, extraction=extraction)
             print('Using transformer module')
 
         if 'question_injection_position' in hyp and hyp["question_injection_position"] != 0:

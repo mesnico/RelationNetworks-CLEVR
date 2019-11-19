@@ -235,14 +235,16 @@ def main(args):
     if 'lr_scheduler' in hyp:
         for k,v in hyp['lr_scheduler'].items():
             lr_params += k+str(v)+'_'
-    args.model_dirs = './model_{}{}_drop{}_bs{}_{}_lrstart{}_'+ \
+    args.model_dirs = './model_{}{}_drop{}_bs{}_{}_lrstart{}_embeddim{}_'+ \
                       '{}invquests-{}_clipnorm{}_glayers{}_qinj{}'
+    embed_dim = hyp['visual_word_embed_dim'] if 'visual_word_embed_dim' in hyp else ''
     dropout_str = hyp['dropouts'] if 'dropouts' in hyp else ''
     aggregation_str = hyp['aggregation'] if 'aggregation' in hyp else ''
     g_layers_str = hyp['g_layers'] if 'g_layers' in hyp else ''
     q_inj_pos_str = hyp['question_injection_position'] if 'question_injection_position' in hyp else ''
     args.model_dirs = args.model_dirs.format(
-                        args.model, '-transf_learn' if args.transfer_learn else '', dropout_str, args.batch_size, aggregation_str, hyp['lr'], lr_params,
+                        args.model, '-transf_learn' if args.transfer_learn else '', dropout_str, args.batch_size,
+                        aggregation_str, hyp['lr'], embed_dim, lr_params,
                         args.invert_questions, args.clip_norm, g_layers_str, q_inj_pos_str)
     if not os.path.exists(args.model_dirs):
         os.makedirs(args.model_dirs)
